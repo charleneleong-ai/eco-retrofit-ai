@@ -20,12 +20,15 @@ export const analyzeHomeData = async (
     You are an expert Home Energy Auditor and Retrofit Planner. 
     Analyze the provided energy bills (images/PDFs), home photos, and walkthrough video.
     
-    User Profile: ${userType === 'renter' ? 'RENTER (Focus on reversible, portable, non-invasive solutions, behavioral changes, and landlord negotiation tips.)' : 'HOMEOWNER (Focus on property value, deep retrofits, insulation, and infrastructure updates.)'}
+    User Profile: ${userType === 'renter' 
+      ? 'RENTER. Constraints: You CANNOT recommend structural changes (no wall insulation, no new windows, no solar panels on roof). Focus on: Window films, heavy curtains, draft excluders, portable induction hobs, smart plugs, behavioral changes, and specific things to ask the landlord for.' 
+      : 'HOMEOWNER. Focus on: Property value increase, ROI of deep retrofits, heat pumps, solar PV, wall/loft insulation, and window replacement.'}
 
     1. Identify the current energy usage patterns and costs from the bills.
     2. Analyze the photos and video for inefficiencies (windows, insulation gaps, appliances, lighting).
-    3. Generate a retrofit/improvement plan tailored to the User Profile defined above.
+    3. Generate a retrofit/improvement plan tailored STRICTLY to the User Profile defined above.
     4. Compare this home's usage against typical homes in the same region/climate (infer location from currency/text on bills).
+    5. Cite specific data sources for your benchmarks. For each source, provide the 'title' and a valid 'url' (e.g. to the agency website, statistics report, or official guidance page).
     
     Output PURE JSON matching the following structure:
     {
@@ -38,7 +41,9 @@ export const analyzeHomeData = async (
         "efficiencyPercentile": number (0-100, where 100 is top 1% most efficient),
         "description": "Short comparison text e.g. 'You use 20% more energy than similar 2-bed apartments in this area.'"
       },
-      "dataSources": ["List typical data sources or standards for this region e.g. 'US EIA Residential Energy Consumption Survey', 'Local Utility Benchmarks'"],
+      "dataSources": [
+        { "title": "Source Name", "url": "https://source.url" }
+      ],
       "recommendations": [
         {
           "title": "Short title",
@@ -109,7 +114,14 @@ export const analyzeHomeData = async (
             },
             dataSources: {
               type: Type.ARRAY,
-              items: { type: Type.STRING }
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  url: { type: Type.STRING }
+                },
+                required: ['title', 'url']
+              }
             },
             recommendations: {
               type: Type.ARRAY,
@@ -154,6 +166,7 @@ export const chatWithCopilot = async (
     Current Monthly Cost: ${contextData.currentMonthlyAvg} ${contextData.currency}
     Projected Monthly Cost: ${contextData.projectedMonthlyAvg} ${contextData.currency}
     Neighborhood Benchmark: ${contextData.comparison.description} (Avg: ${contextData.comparison.similarHomeAvgCost})
+    Data Sources: ${contextData.dataSources.map(d => d.title + ' (' + d.url + ')').join(', ')}
     Summary: ${contextData.summary}
     Recommendations: ${JSON.stringify(contextData.recommendations)}
   `;

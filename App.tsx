@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { AppState, AnalysisResult, UserType } from './types';
+
+import React, { useState, useEffect } from 'react';
+import { AppState, AnalysisResult, UserType, SavedAnalysis } from './types';
 import { analyzeHomeData } from './services/geminiService';
 import { fileToBase64 } from './utils';
+import { saveAnalysis, getAllAnalyses } from './services/dbService';
 import UploadZone from './components/UploadZone';
 import Button from './components/Button';
 import AnalysisDashboard from './components/AnalysisDashboard';
 import ChatInterface from './components/ChatInterface';
-import { ArrowRight, Leaf, Home, Building } from 'lucide-react';
+import HistoryView from './components/HistoryView';
+import { ArrowRight, Leaf, Home, Building, History as HistoryIcon } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>('upload');
@@ -17,6 +20,21 @@ export default function App() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini 3...');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<SavedAnalysis[]>([]);
+
+  // Load history count on mount
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      const items = await getAllAnalyses();
+      setHistoryItems(items);
+    } catch (e) {
+      console.error("Failed to load history", e);
+    }
+  };
 
   const handleRemoveFile = (setFiles: React.Dispatch<React.SetStateAction<File[]>>, index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
@@ -35,7 +53,9 @@ export default function App() {
     try {
       // Convert inputs to Base64 with MimeType
       const billData = await Promise.all(billFiles.map(async (file) => ({
-        mimeType: file.type,
+        name: file.name,
+        type: file.type,
+        mimeType: file.type, // keeping mimeType for service compatibility
         data: await fileToBase64(file)
       })));
 
@@ -50,9 +70,15 @@ export default function App() {
         videoMime = videoFiles[0].type;
       }
 
-      setLoadingMsg(`Gemini 3 is creating your ${userType} plan...`);
+      setLoadingMsg('Creating your plan to eco retrofit your home...');
       
       const result = await analyzeHomeData(billData, homeImages, videoData, videoMime, userType);
+      
+      // Save to local DB
+      setLoadingMsg('Saving results locally...');
+      await saveAnalysis(userType, result, billData.map(b => ({ name: b.name, type: b.type, data: b.data })));
+      await loadHistory(); // Refresh history count
+
       setAnalysisResult(result);
       setState('dashboard');
       
@@ -63,28 +89,76 @@ export default function App() {
     }
   };
 
+  const handleRestoreFromHistory = (item: SavedAnalysis) => {
+    setUserType(item.userType);
+    setAnalysisResult(item.result);
+    // We don't restore the file inputs UI, just the results view
+    setBillFiles([]);
+    setHomeFiles([]);
+    setVideoFiles([]);
+    setState('dashboard');
+  };
+
+  const handleNewAnalysis = () => {
+    // If we are already in upload, do nothing or maybe scroll to top?
+    // If we are in dashboard or history, reset state.
+    if (state !== 'upload') {
+        setState('upload');
+        setAnalysisResult(null);
+        setBillFiles([]);
+        setHomeFiles([]);
+        setVideoFiles([]);
+    }
+  };
+
+  const isHistoryActive = state === 'history';
+  const isAnalysisActive = !isHistoryActive;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-40">
+      <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setState('upload')}>
+            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white shadow-emerald-200 shadow-lg">
               <Leaf className="w-5 h-5" />
             </div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">EcoRetrofit <span className="text-emerald-600">AI</span></h1>
+            <h1 className="text-xl font-bold text-slate-800 tracking-tight hidden sm:block">EcoRetrofit <span className="text-emerald-600">AI</span></h1>
           </div>
-          {state === 'dashboard' && (
-            <Button variant="ghost" onClick={() => {
-              setState('upload');
-              setAnalysisResult(null);
-              setBillFiles([]);
-              setHomeFiles([]);
-              setVideoFiles([]);
-            }}>
-              New Analysis
-            </Button>
-          )}
+          
+          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+             <button
+                onClick={handleNewAnalysis}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                    isAnalysisActive
+                    ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                }`}
+             >
+                <Leaf className={`w-4 h-4 ${isAnalysisActive ? 'fill-emerald-600' : ''}`} />
+                <span className="hidden sm:inline">New Analysis</span>
+             </button>
+
+             <button
+                onClick={() => {
+                  loadHistory();
+                  setState('history');
+                }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 relative ${
+                    isHistoryActive
+                    ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                }`}
+             >
+                <HistoryIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">History</span>
+                {historyItems.length > 0 && !isHistoryActive && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white ring-2 ring-white">
+                    {historyItems.length}
+                  </span>
+                )}
+             </button>
+          </div>
         </div>
       </nav>
 
@@ -101,24 +175,25 @@ export default function App() {
             </div>
 
             {/* User Type Toggle */}
-            <div className="flex justify-center mb-8">
+            <div className="flex flex-col items-center mb-10">
+              <p className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wide">I am a</p>
               <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm inline-flex gap-1">
                 <button 
                   onClick={() => setUserType('homeowner')}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                     userType === 'homeowner' 
-                      ? 'bg-emerald-600 text-white shadow-md' 
-                      : 'text-slate-600 hover:bg-slate-50'
+                      ? 'bg-emerald-600 text-white shadow-md transform scale-105' 
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                   }`}
                 >
                   <Home className="w-4 h-4" /> Homeowner
                 </button>
                 <button 
                   onClick={() => setUserType('renter')}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                     userType === 'renter' 
-                      ? 'bg-emerald-600 text-white shadow-md' 
-                      : 'text-slate-600 hover:bg-slate-50'
+                      ? 'bg-emerald-600 text-white shadow-md transform scale-105' 
+                      : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                   }`}
                 >
                   <Building className="w-4 h-4" /> Renter
@@ -187,6 +262,15 @@ export default function App() {
             <h3 className="mt-8 text-2xl font-bold text-slate-800">Analyzing Your Home</h3>
             <p className="text-slate-500 mt-2 max-w-md">{loadingMsg}</p>
           </div>
+        )}
+
+        {state === 'history' && (
+          <HistoryView 
+            items={historyItems}
+            onSelect={handleRestoreFromHistory}
+            onRefresh={loadHistory}
+            onBack={handleNewAnalysis}
+          />
         )}
 
         {state === 'dashboard' && analysisResult && (

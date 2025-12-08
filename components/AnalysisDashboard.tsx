@@ -2,7 +2,7 @@ import React from 'react';
 import { AnalysisResult } from '../types';
 import SavingsChart from './SavingsChart';
 import ReactMarkdown from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -76,37 +76,66 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data }) => {
         </div>
 
         {/* Neighborhood Benchmark */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col">
-          <div className="flex items-center gap-2 mb-4">
-             <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl"></div>
+          
+          <div className="flex items-center gap-2 mb-6 relative z-10">
+             <div className="p-2 bg-blue-100 rounded-lg text-blue-700">
                <Users className="w-5 h-5" />
              </div>
              <h3 className="font-bold text-slate-800">Neighborhood Comparison</h3>
           </div>
           
-          <div className="flex-1 flex flex-col justify-center">
+          <div className="flex-1 flex flex-col justify-center relative z-10">
             <div className="mb-6">
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-500">Efficiency Score</span>
-                <span className="font-semibold text-slate-700">{data.comparison.efficiencyPercentile}/100</span>
+                <span className="text-slate-500 font-medium">Efficiency Score</span>
+                <span className="font-bold text-slate-700">{data.comparison.efficiencyPercentile}/100</span>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-100">
                 <div 
-                  className="bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 h-full rounded-full transition-all duration-1000"
+                  className="bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 h-full rounded-full transition-all duration-1000 relative"
                   style={{ width: `${data.comparison.efficiencyPercentile}%` }}
-                ></div>
+                >
+                  <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-50"></div>
+                </div>
               </div>
+              <p className="text-xs text-slate-400 mt-1.5 text-right">Better than {data.comparison.efficiencyPercentile}% of similar homes</p>
             </div>
             
-            <div className="bg-slate-50 rounded-xl p-4 mb-4">
-               <p className="text-sm text-slate-700 font-medium mb-1">Similar Homes Avg.</p>
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-4">
+               <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Local Benchmark</p>
                <p className="text-2xl font-bold text-slate-800">{data.currency}{data.comparison.similarHomeAvgCost}<span className="text-sm font-normal text-slate-400">/mo</span></p>
             </div>
 
-            <p className="text-sm text-slate-600 italic">"{data.comparison.description}"</p>
+            <p className="text-sm text-slate-600 italic leading-relaxed">"{data.comparison.description}"</p>
           </div>
         </div>
       </div>
+
+      {/* Data Sources Section (New) */}
+      {data.dataSources && data.dataSources.length > 0 && (
+         <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+            <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+               <BookOpen className="w-4 h-4 text-slate-500" />
+               Data Sources & Benchmarks
+            </h4>
+            <div className="flex flex-wrap gap-2">
+               {data.dataSources.map((source, i) => (
+               <a 
+                  key={i} 
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer" 
+                  className="inline-flex items-center gap-1 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm hover:text-emerald-600 hover:border-emerald-200 transition-colors"
+               >
+                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                  {source.title}
+               </a>
+               ))}
+            </div>
+         </div>
+      )}
 
       {/* Recommendations Grid */}
       <div>
@@ -148,23 +177,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data }) => {
           ))}
         </div>
       </div>
-
-      {/* Data Sources Footer */}
-      {data.dataSources && data.dataSources.length > 0 && (
-        <div className="border-t border-slate-200 pt-6 mt-8">
-           <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-             <ExternalLink className="w-3 h-3" /> Data Sources & Benchmarks
-           </h4>
-           <div className="flex flex-wrap gap-2">
-              {data.dataSources.map((source, i) => (
-                <span key={i} className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                  {source}
-                </span>
-              ))}
-           </div>
-        </div>
-      )}
-
     </div>
   );
 };

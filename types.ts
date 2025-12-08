@@ -1,3 +1,4 @@
+
 export type UserType = 'homeowner' | 'renter';
 
 export interface Recommendation {
@@ -15,6 +16,11 @@ export interface ComparisonData {
   description: string;
 }
 
+export interface DataSource {
+  title: string;
+  url: string;
+}
+
 export interface AnalysisResult {
   summary: string;
   currentMonthlyAvg: number;
@@ -22,7 +28,21 @@ export interface AnalysisResult {
   currency: string;
   recommendations: Recommendation[];
   comparison: ComparisonData;
-  dataSources: string[];
+  dataSources: DataSource[];
+}
+
+export interface FileData {
+  name: string;
+  type: string;
+  data: string; // Base64
+}
+
+export interface SavedAnalysis {
+  id: string;
+  date: number;
+  userType: UserType;
+  result: AnalysisResult;
+  billFiles: FileData[];
 }
 
 export interface FileWithPreview {
@@ -31,4 +51,4 @@ export interface FileWithPreview {
   type: 'image' | 'video' | 'pdf';
 }
 
-export type AppState = 'upload' | 'analyzing' | 'dashboard';
+export type AppState = 'upload' | 'analyzing' | 'dashboard' | 'history';
