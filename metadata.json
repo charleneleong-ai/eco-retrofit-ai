@@ -1,0 +1,5 @@
+{
+  "name": "EcoRetrofit AI",
+  "description": "A multimodal Gemini 3 copilot that analyzes your energy bills, home photos, and walkthrough videos to generate a personalized retrofit and bill-reduction plan.",
+  "requestFramePermissions": []
+}
