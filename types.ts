@@ -21,7 +21,28 @@ export interface DataSource {
   url: string;
 }
 
+export interface UsageMetric {
+  label: string;
+  kwh: number;
+  cost: number;
+}
+
+export interface UsageBreakdown {
+  daily: UsageMetric[];
+  weekly: UsageMetric[];
+  monthly: UsageMetric[];
+}
+
+export interface EPCRating {
+  current: string; // A-G
+  potential: string; // A-G
+  score: number; // 1-100
+}
+
 export interface AnalysisResult {
+  customerName?: string;
+  address?: string;
+  auditDate?: string;
   summary: string;
   currentMonthlyAvg: number;
   projectedMonthlyAvg: number;
@@ -29,6 +50,8 @@ export interface AnalysisResult {
   recommendations: Recommendation[];
   comparison: ComparisonData;
   dataSources: DataSource[];
+  usageBreakdown?: UsageBreakdown;
+  epc?: EPCRating;
 }
 
 export interface FileData {

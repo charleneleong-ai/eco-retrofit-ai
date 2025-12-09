@@ -1,14 +1,18 @@
+
 import React from 'react';
 import { AnalysisResult } from '../types';
 import SavingsChart from './SavingsChart';
+import UsageTrendsChart from './UsageTrendsChart';
+import EPCBadge from './EPCBadge';
 import ReactMarkdown from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
+  onUpdateAnalysis?: () => void;
 }
 
-const AnalysisDashboard: React.FC<DashboardProps> = ({ data }) => {
+const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis }) => {
   const annualSavings = (data.currentMonthlyAvg - data.projectedMonthlyAvg) * 12;
   const savingsPercent = Math.round(((data.currentMonthlyAvg - data.projectedMonthlyAvg) / data.currentMonthlyAvg) * 100);
 
@@ -33,6 +37,33 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data }) => {
   return (
     <div className="space-y-8 animate-fade-in pb-20">
       
+      {/* Report Header */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+           <div className="flex items-center gap-2 mb-1">
+             <div className="bg-emerald-100 p-1.5 rounded-full">
+               <Home className="w-4 h-4 text-emerald-600" />
+             </div>
+             <h1 className="text-xl font-bold text-slate-800">Retrofit Action Plan</h1>
+           </div>
+           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 text-sm text-slate-500">
+              <span className="flex items-center gap-1.5"><User className="w-4 h-4" /> {data.customerName || 'Valued Customer'}</span>
+              <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {data.address || 'Address not detected'}</span>
+              <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {data.auditDate || new Date().toLocaleDateString()}</span>
+           </div>
+        </div>
+        
+        {onUpdateAnalysis && (
+          <button 
+            onClick={onUpdateAnalysis}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition-colors shadow-md"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Update / Add Data
+          </button>
+        )}
+      </div>
+
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
@@ -67,7 +98,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Executive Summary */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
           <h3 className="text-lg font-bold text-slate-800 mb-4">Executive Summary</h3>
           <div className="prose prose-slate max-w-none text-slate-600">
@@ -75,45 +105,57 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data }) => {
           </div>
         </div>
 
-        {/* Neighborhood Benchmark */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl"></div>
-          
-          <div className="flex items-center gap-2 mb-6 relative z-10">
-             <div className="p-2 bg-blue-100 rounded-lg text-blue-700">
-               <Users className="w-5 h-5" />
-             </div>
-             <h3 className="font-bold text-slate-800">Neighborhood Comparison</h3>
-          </div>
-          
-          <div className="flex-1 flex flex-col justify-center relative z-10">
-            <div className="mb-6">
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-slate-500 font-medium">Efficiency Score</span>
-                <span className="font-bold text-slate-700">{data.comparison.efficiencyPercentile}/100</span>
+        {/* Neighborhood Benchmark & EPC */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl"></div>
+            
+            <div className="flex items-center gap-2 mb-6 relative z-10">
+              <div className="p-2 bg-blue-100 rounded-lg text-blue-700">
+                <Users className="w-5 h-5" />
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-100">
-                <div 
-                  className="bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 h-full rounded-full transition-all duration-1000 relative"
-                  style={{ width: `${data.comparison.efficiencyPercentile}%` }}
-                >
-                  <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-50"></div>
-                </div>
-              </div>
-              <p className="text-xs text-slate-400 mt-1.5 text-right">Better than {data.comparison.efficiencyPercentile}% of similar homes</p>
+              <h3 className="font-bold text-slate-800">Neighborhood</h3>
             </div>
             
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-4">
-               <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Local Benchmark</p>
-               <p className="text-2xl font-bold text-slate-800">{data.currency}{data.comparison.similarHomeAvgCost}<span className="text-sm font-normal text-slate-400">/mo</span></p>
-            </div>
+            <div className="flex-1 flex flex-col justify-center relative z-10">
+              <div className="mb-6">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-slate-500 font-medium">Efficiency Score</span>
+                  <span className="font-bold text-slate-700">{data.comparison.efficiencyPercentile}/100</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-100">
+                  <div 
+                    className="bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 h-full rounded-full transition-all duration-1000 relative"
+                    style={{ width: `${data.comparison.efficiencyPercentile}%` }}
+                  >
+                    <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-50"></div>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5 text-right">Better than {data.comparison.efficiencyPercentile}% of similar homes</p>
+              </div>
+              
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-4">
+                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Local Benchmark</p>
+                <p className="text-2xl font-bold text-slate-800">{data.currency}{data.comparison.similarHomeAvgCost}<span className="text-sm font-normal text-slate-400">/mo</span></p>
+              </div>
 
-            <p className="text-sm text-slate-600 italic leading-relaxed">"{data.comparison.description}"</p>
+              <p className="text-sm text-slate-600 italic leading-relaxed line-clamp-3">"{data.comparison.description}"</p>
+            </div>
           </div>
+
+          {/* EPC Chart */}
+          {data.epc && (
+             <EPCBadge current={data.epc.current} potential={data.epc.potential} />
+          )}
         </div>
       </div>
 
-      {/* Data Sources Section (New) */}
+      {/* Usage Trends Chart (New) */}
+      {data.usageBreakdown && (
+        <UsageTrendsChart data={data.usageBreakdown} currency={data.currency} />
+      )}
+
+      {/* Data Sources Section */}
       {data.dataSources && data.dataSources.length > 0 && (
          <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
             <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">

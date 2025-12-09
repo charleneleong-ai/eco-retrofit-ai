@@ -4,12 +4,13 @@ import { AppState, AnalysisResult, UserType, SavedAnalysis } from './types';
 import { analyzeHomeData } from './services/geminiService';
 import { fileToBase64 } from './utils';
 import { saveAnalysis, getAllAnalyses } from './services/dbService';
+import { MOCK_ANALYSIS_RESULT } from './services/mockData';
 import UploadZone from './components/UploadZone';
 import Button from './components/Button';
 import AnalysisDashboard from './components/AnalysisDashboard';
 import ChatInterface from './components/ChatInterface';
 import HistoryView from './components/HistoryView';
-import { ArrowRight, Leaf, Home, Building, History as HistoryIcon } from 'lucide-react';
+import { ArrowRight, Leaf, Home, Building, History as HistoryIcon, Plus, PlayCircle, FileText } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>('upload');
@@ -18,7 +19,9 @@ export default function App() {
   const [homeFiles, setHomeFiles] = useState<File[]>([]);
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-  const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini 3...');
+  const [previousAnalysis, setPreviousAnalysis] = useState<AnalysisResult | null>(null);
+  
+  const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini...');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<SavedAnalysis[]>([]);
 
@@ -26,6 +29,29 @@ export default function App() {
   useEffect(() => {
     loadHistory();
   }, []);
+
+  // Dynamic loading message
+  useEffect(() => {
+    let interval: number;
+    if (state === 'analyzing') {
+      const messages = [
+        "Reading energy bills...",
+        "Scanning home photos for inefficiencies...",
+        "Processing video walkthrough...",
+        "Identifying insulation gaps...",
+        "Calculating potential savings...",
+        "Comparing with neighborhood benchmarks...",
+        "Finalizing your eco-retrofit plan..."
+      ];
+      let i = 0;
+      setLoadingMsg(messages[0]);
+      interval = window.setInterval(() => {
+        i = (i + 1) % messages.length;
+        setLoadingMsg(messages[i]);
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [state]);
 
   const loadHistory = async () => {
     try {
@@ -48,7 +74,7 @@ export default function App() {
 
     setState('analyzing');
     setErrorMsg(null);
-    setLoadingMsg('Processing files...');
+    // Initial message handled by useEffect
 
     try {
       // Convert inputs to Base64 with MimeType
@@ -69,10 +95,8 @@ export default function App() {
         videoData = await fileToBase64(videoFiles[0]);
         videoMime = videoFiles[0].type;
       }
-
-      setLoadingMsg('Creating your plan to eco retrofit your home...');
       
-      const result = await analyzeHomeData(billData, homeImages, videoData, videoMime, userType);
+      const result = await analyzeHomeData(billData, homeImages, videoData, videoMime, userType, previousAnalysis);
       
       // Save to local DB
       setLoadingMsg('Saving results locally...');
@@ -80,11 +104,44 @@ export default function App() {
       await loadHistory(); // Refresh history count
 
       setAnalysisResult(result);
+      // Reset previous analysis context after successful update
+      setPreviousAnalysis(null);
+      
       setState('dashboard');
       
     } catch (error: any) {
       console.error(error);
       setErrorMsg(error.message || "An unexpected error occurred during analysis.");
+      setState('upload');
+    }
+  };
+
+  const handleLoadDemo = async () => {
+    setState('analyzing');
+    setLoadingMsg("Loading sample data...");
+    
+    // Simulate slight network delay for realism
+    setTimeout(async () => {
+      setAnalysisResult(MOCK_ANALYSIS_RESULT);
+      
+      // Save demo to history so it persists
+      await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, [
+        { name: 'ovo-bill-dec24.pdf', type: 'application/pdf', data: '' },
+        { name: 'ovo-bill-jan25.pdf', type: 'application/pdf', data: '' }
+      ]);
+      await loadHistory();
+      
+      setState('dashboard');
+    }, 1500);
+  };
+
+  const handleUpdateAnalysis = () => {
+    if (analysisResult) {
+      setPreviousAnalysis(analysisResult);
+      // Clear files so user knows they are uploading NEW ones
+      setBillFiles([]);
+      setHomeFiles([]);
+      setVideoFiles([]);
       setState('upload');
     }
   };
@@ -96,15 +153,15 @@ export default function App() {
     setBillFiles([]);
     setHomeFiles([]);
     setVideoFiles([]);
+    setPreviousAnalysis(null);
     setState('dashboard');
   };
 
   const handleNewAnalysis = () => {
-    // If we are already in upload, do nothing or maybe scroll to top?
-    // If we are in dashboard or history, reset state.
-    if (state !== 'upload') {
+    if (state !== 'upload' || previousAnalysis) {
         setState('upload');
         setAnalysisResult(null);
+        setPreviousAnalysis(null);
         setBillFiles([]);
         setHomeFiles([]);
         setVideoFiles([]);
@@ -119,45 +176,65 @@ export default function App() {
       {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setState('upload')}>
+          <div className="flex items-center gap-2 cursor-pointer" onClick={handleNewAnalysis}>
             <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white shadow-emerald-200 shadow-lg">
               <Leaf className="w-5 h-5" />
             </div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight hidden sm:block">EcoRetrofit <span className="text-emerald-600">AI</span></h1>
           </div>
           
-          <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-             <button
-                onClick={handleNewAnalysis}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
-                    isAnalysisActive
-                    ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                }`}
-             >
-                <Leaf className={`w-4 h-4 ${isAnalysisActive ? 'fill-emerald-600' : ''}`} />
-                <span className="hidden sm:inline">New Analysis</span>
-             </button>
+          <div className="flex items-center gap-3">
+             {/* "Start New" shortcut when inside a plan */}
+             {analysisResult && (
+               <button 
+                 onClick={handleNewAnalysis}
+                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                 title="Start a fresh analysis"
+               >
+                 <Plus className="w-4 h-4" />
+                 <span className="hidden sm:inline">New Analysis</span>
+               </button>
+             )}
 
-             <button
-                onClick={() => {
-                  loadHistory();
-                  setState('history');
-                }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 relative ${
-                    isHistoryActive
-                    ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                }`}
-             >
-                <HistoryIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">History</span>
-                {historyItems.length > 0 && !isHistoryActive && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white ring-2 ring-white">
-                    {historyItems.length}
-                  </span>
-                )}
-             </button>
+             <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+               <button
+                  onClick={() => {
+                      if (analysisResult) {
+                          setState('dashboard');
+                      } else {
+                          handleNewAnalysis();
+                      }
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                      isAnalysisActive
+                      ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                  }`}
+               >
+                  {analysisResult ? <FileText className="w-4 h-4" /> : <Leaf className={`w-4 h-4 ${isAnalysisActive ? 'fill-emerald-600' : ''}`} />}
+                  <span className="hidden sm:inline">{analysisResult ? 'Current Analysis' : 'New Analysis'}</span>
+               </button>
+
+               <button
+                  onClick={() => {
+                    loadHistory();
+                    setState('history');
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 relative ${
+                      isHistoryActive
+                      ? 'bg-white text-emerald-600 shadow-sm ring-1 ring-slate-200' 
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                  }`}
+               >
+                  <HistoryIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">History</span>
+                  {historyItems.length > 0 && !isHistoryActive && (
+                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white ring-2 ring-white">
+                      {historyItems.length}
+                    </span>
+                  )}
+               </button>
+             </div>
           </div>
         </div>
       </nav>
@@ -166,13 +243,30 @@ export default function App() {
         
         {state === 'upload' && (
           <div className="max-w-3xl mx-auto animate-fade-in-up">
-            <div className="text-center mb-10">
-              <h2 className="text-4xl font-bold text-slate-900 mb-4">Turn Your Bills into Savings</h2>
-              <p className="text-lg text-slate-600">
-                Upload your energy bills, photos of your home, and a quick walkthrough video. 
-                Gemini 3 will build a personalized retrofit plan for you.
-              </p>
-            </div>
+            
+            {previousAnalysis ? (
+               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 mb-8 flex items-start gap-4 shadow-sm">
+                  <div className="bg-emerald-100 p-2 rounded-full">
+                    <Plus className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-emerald-800 text-lg">Update Existing Analysis</h3>
+                    <p className="text-emerald-700/80 mt-1">
+                      You are adding data to the plan for <strong>{previousAnalysis.address || 'your property'}</strong>. 
+                      Upload new bills or photos to refine the recommendations.
+                    </p>
+                    <button onClick={handleNewAnalysis} className="text-xs font-bold text-emerald-600 mt-2 underline">Start Fresh Instead</button>
+                  </div>
+               </div>
+            ) : (
+              <div className="text-center mb-10">
+                <h2 className="text-4xl font-bold text-slate-900 mb-4">Turn Your Bills into Savings</h2>
+                <p className="text-lg text-slate-600">
+                  Upload your energy bills, photos of your home, and a quick walkthrough video. 
+                  Gemini will build a personalized retrofit plan for you.
+                </p>
+              </div>
+            )}
 
             {/* User Type Toggle */}
             <div className="flex flex-col items-center mb-10">
@@ -240,13 +334,22 @@ export default function App() {
               </div>
             </div>
 
-            <div className="mt-10 flex justify-center">
+            <div className="mt-10 flex flex-col items-center gap-4">
               <Button 
                 onClick={handleAnalyze} 
                 className="px-8 py-3 text-lg shadow-emerald-200 shadow-xl hover:shadow-2xl hover:shadow-emerald-200 transform hover:-translate-y-1"
               >
-                Start Analysis <ArrowRight className="w-5 h-5 ml-1" />
+                {previousAnalysis ? 'Update Analysis' : 'Start Analysis'} <ArrowRight className="w-5 h-5 ml-1" />
               </Button>
+
+              {!previousAnalysis && (
+                <button 
+                  onClick={handleLoadDemo}
+                  className="text-sm font-medium text-slate-500 hover:text-emerald-600 flex items-center gap-1.5 transition-colors"
+                >
+                  <PlayCircle className="w-4 h-4" /> Load Demo Data
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -260,7 +363,7 @@ export default function App() {
               </div>
             </div>
             <h3 className="mt-8 text-2xl font-bold text-slate-800">Analyzing Your Home</h3>
-            <p className="text-slate-500 mt-2 max-w-md">{loadingMsg}</p>
+            <p className="text-slate-500 mt-2 max-w-md min-h-[24px] transition-all duration-300">{loadingMsg}</p>
           </div>
         )}
 
@@ -275,7 +378,10 @@ export default function App() {
 
         {state === 'dashboard' && analysisResult && (
           <>
-            <AnalysisDashboard data={analysisResult} />
+            <AnalysisDashboard 
+              data={analysisResult} 
+              onUpdateAnalysis={handleUpdateAnalysis}
+            />
             <ChatInterface analysisResult={analysisResult} />
           </>
         )}

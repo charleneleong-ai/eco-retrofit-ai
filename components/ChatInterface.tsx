@@ -52,7 +52,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ analysisResult }) => {
         className="fixed bottom-6 right-6 bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-105 z-50 flex items-center gap-2"
       >
         <MessageSquare className="w-6 h-6" />
-        <span className="font-semibold pr-2">Ask Copilot</span>
+        <span className="font-semibold pr-2">Ask EcoRetrofit AI</span>
       </button>
     );
   }

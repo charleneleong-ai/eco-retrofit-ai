@@ -1,45 +1,83 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult, UserType } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Using Gemini 3 Pro Preview for complex multimodal reasoning
-const MODEL_NAME = 'gemini-3-pro-preview';
+// Switching to Gemini 2.5 Flash for faster inference speeds while maintaining high multimodal capability
+const MODEL_NAME = 'gemini-2.5-flash';
 
 export const analyzeHomeData = async (
   billFiles: { mimeType: string; data: string }[],
   homeImages: string[],
   videoData: string | null,
   videoMimeType: string | null,
-  userType: UserType
+  userType: UserType,
+  previousAnalysis?: AnalysisResult | null
 ): Promise<AnalysisResult> => {
   
   const parts: any[] = [];
+
+  const updateContext = previousAnalysis 
+    ? `IMPORTANT: This is an UPDATE to an existing analysis. 
+       Previous Summary: ${previousAnalysis.summary}
+       Previous Address: ${previousAnalysis.address || 'Unknown'}
+       Merge the new files/info with the previous findings. If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.`
+    : '';
 
   const prompt = `
     You are an expert Home Energy Auditor and Retrofit Planner. 
     Analyze the provided energy bills (images/PDFs), home photos, and walkthrough video.
     
+    ${updateContext}
+
     User Profile: ${userType === 'renter' 
       ? 'RENTER. Constraints: You CANNOT recommend structural changes (no wall insulation, no new windows, no solar panels on roof). Focus on: Window films, heavy curtains, draft excluders, portable induction hobs, smart plugs, behavioral changes, and specific things to ask the landlord for.' 
       : 'HOMEOWNER. Focus on: Property value increase, ROI of deep retrofits, heat pumps, solar PV, wall/loft insulation, and window replacement.'}
 
-    1. Identify the current energy usage patterns and costs from the bills.
-    2. Analyze the photos and video for inefficiencies (windows, insulation gaps, appliances, lighting).
-    3. Generate a retrofit/improvement plan tailored STRICTLY to the User Profile defined above.
-    4. Compare this home's usage against typical homes in the same region/climate (infer location from currency/text on bills).
-    5. Cite specific data sources for your benchmarks. For each source, provide the 'title' and a valid 'url' (e.g. to the agency website, statistics report, or official guidance page).
-    
+    1. Extract Customer Details: Look for the customer Name and Property Address on the bills.
+    2. Analyze Usage & Costs: 
+       - Identify patterns (e.g., winter peaks). 
+       - GENERATE A FULL 12-MONTH TIMELINE ('monthly' array) representing the last year (or a typical year) based on the data provided. Account for seasonality.
+    3. EPC (Energy Performance Certificate):
+       - PRIMARY GOAL: Look for an "Energy Rating" or "EPC" on the bill documents or try to infer the REAL rating from the specific address if known/visible.
+       - FALLBACK: If no official rating is found, ESTIMATE the EPC rating (A-G) based on visual evidence (insulation thickness, glazing type, boiler age).
+       - Provide a numeric score (1-100) if possible.
+    4. Identify Inefficiencies: Analyze photos/video for windows, insulation gaps, appliances.
+    5. Generate Plan: Create a retrofit/improvement plan tailored STRICTLY to the User Profile.
+    6. Benchmarking: Compare against typical homes in the region (infer location from currency/text).
+    7. Sources: Cite specific official data sources. 
+       CRITICAL - USE ONLY THESE VERIFIED STABLE URLS to avoid broken links (404s):
+       - UK OFGEM: "https://www.ofgem.gov.uk/information-consumers"
+       - UK Energy Saving Trust: "https://energysavingtrust.org.uk/energy-at-home"
+       - UK Government EPC: "https://www.gov.uk/find-energy-certificate"
+       - US EIA: "https://www.eia.gov/consumption/residential/"
+       - US Energy Saver: "https://www.energy.gov/save"
+       If you need to cite another source, use the main homepage URL (e.g., "https://www.bbc.co.uk") rather than a deep link that might rot.
+
     Output PURE JSON matching the following structure:
     {
-      "summary": "A friendly, markdown-formatted executive summary of the findings.",
-      "currentMonthlyAvg": number (estimated current monthly cost),
-      "projectedMonthlyAvg": number (estimated cost after improvements),
-      "currency": "USD" or "GBP" or "EUR" detected from bills,
+      "customerName": "Extracted Name or 'Valued Customer'",
+      "address": "Extracted Address or 'Property Address'",
+      "auditDate": "Current Date (e.g. Oct 24, 2023)",
+      "summary": "Markdown executive summary.",
+      "currentMonthlyAvg": number,
+      "projectedMonthlyAvg": number,
+      "currency": "USD" or "GBP" or "EUR",
+      "usageBreakdown": {
+        "daily": [{ "label": "Mon", "kwh": 10, "cost": 2.5 }, ...],
+        "weekly": [{ "label": "Week 1", "kwh": 70, "cost": 15 }, ...],
+        "monthly": [{ "label": "Jan", "kwh": 300, "cost": 80 }, ...] // Must contain 12 months
+      },
+      "epc": {
+        "current": "D",
+        "potential": "B",
+        "score": 55
+      },
       "comparison": {
-        "similarHomeAvgCost": number (benchmark cost for similar home),
-        "efficiencyPercentile": number (0-100, where 100 is top 1% most efficient),
-        "description": "Short comparison text e.g. 'You use 20% more energy than similar 2-bed apartments in this area.'"
+        "similarHomeAvgCost": number,
+        "efficiencyPercentile": number,
+        "description": "Comparison text"
       },
       "dataSources": [
         { "title": "Source Name", "url": "https://source.url" }
@@ -99,10 +137,39 @@ export const analyzeHomeData = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            customerName: { type: Type.STRING },
+            address: { type: Type.STRING },
+            auditDate: { type: Type.STRING },
             summary: { type: Type.STRING },
             currentMonthlyAvg: { type: Type.NUMBER },
             projectedMonthlyAvg: { type: Type.NUMBER },
             currency: { type: Type.STRING },
+            usageBreakdown: {
+              type: Type.OBJECT,
+              properties: {
+                daily: { 
+                  type: Type.ARRAY, 
+                  items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
+                },
+                weekly: { 
+                  type: Type.ARRAY, 
+                  items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
+                },
+                monthly: { 
+                  type: Type.ARRAY, 
+                  items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
+                }
+              }
+            },
+            epc: {
+              type: Type.OBJECT,
+              properties: {
+                current: { type: Type.STRING },
+                potential: { type: Type.STRING },
+                score: { type: Type.NUMBER }
+              },
+              required: ['current', 'potential', 'score']
+            },
             comparison: {
               type: Type.OBJECT,
               properties: {
@@ -139,7 +206,7 @@ export const analyzeHomeData = async (
               }
             }
           },
-          required: ['summary', 'currentMonthlyAvg', 'projectedMonthlyAvg', 'currency', 'recommendations', 'comparison', 'dataSources']
+          required: ['summary', 'currentMonthlyAvg', 'projectedMonthlyAvg', 'currency', 'recommendations', 'comparison', 'dataSources', 'epc']
         }
       }
     });
@@ -163,8 +230,11 @@ export const chatWithCopilot = async (
   
   const context = `
     Context from analysis:
+    Customer: ${contextData.customerName}
+    Address: ${contextData.address}
     Current Monthly Cost: ${contextData.currentMonthlyAvg} ${contextData.currency}
     Projected Monthly Cost: ${contextData.projectedMonthlyAvg} ${contextData.currency}
+    Estimated EPC: ${contextData.epc?.current} -> ${contextData.epc?.potential}
     Neighborhood Benchmark: ${contextData.comparison.description} (Avg: ${contextData.comparison.similarHomeAvgCost})
     Data Sources: ${contextData.dataSources.map(d => d.title + ' (' + d.url + ')').join(', ')}
     Summary: ${contextData.summary}
