@@ -8,6 +8,44 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 // Switching to Gemini 2.5 Flash for faster inference speeds while maintaining high multimodal capability
 const MODEL_NAME = 'gemini-2.5-flash';
 
+// Verified Source Library - Single Source of Truth for the AI
+// UPDATED: Consolidated appliance links to active 'home-appliances' page to prevent 404s
+const VERIFIED_SOURCES_LIBRARY = `
+CATEGORY: WINDOWS & DOORS
+- Draught Proofing: "https://energysavingtrust.org.uk/advice/draught-proofing/"
+- Windows & Doors Advice: "https://energysavingtrust.org.uk/advice/windows-and-doors/"
+
+CATEGORY: INSULATION
+- Roof & Loft Insulation: "https://energysavingtrust.org.uk/advice/roof-and-loft-insulation/"
+- Cavity Wall Insulation: "https://energysavingtrust.org.uk/advice/cavity-wall-insulation/"
+- Solid Wall Insulation: "https://energysavingtrust.org.uk/advice/solid-wall-insulation/"
+- Floor Insulation: "https://energysavingtrust.org.uk/advice/floor-insulation/"
+- Tank & Pipe Insulation: "https://energysavingtrust.org.uk/advice/insulating-tanks-pipes-and-radiators/"
+
+CATEGORY: HEATING & HOT WATER
+- Thermostats & Controls: "https://energysavingtrust.org.uk/advice/thermostats-and-heating-controls/"
+- Air Source Heat Pumps: "https://energysavingtrust.org.uk/advice/air-source-heat-pumps/"
+- Ground Source Heat Pumps: "https://energysavingtrust.org.uk/advice/ground-source-heat-pumps/"
+- Boilers: "https://energysavingtrust.org.uk/advice/boilers/"
+- Radiators: "https://energysavingtrust.org.uk/advice/radiators/"
+- Electric Heating: "https://energysavingtrust.org.uk/advice/electric-heating/"
+
+CATEGORY: APPLIANCES & LIFESTYLE
+- Home Appliances (Kitchen/Laundry): "https://energysavingtrust.org.uk/advice/home-appliances/"
+- Lighting: "https://energysavingtrust.org.uk/advice/lighting/"
+- Smart Meters: "https://energysavingtrust.org.uk/advice/guide-to-smart-meters/"
+- Fixing Damp & Condensation: "https://energysavingtrust.org.uk/advice/fixing-damp-and-condensation/"
+
+CATEGORY: RENEWABLES
+- Solar Panels (PV): "https://energysavingtrust.org.uk/advice/solar-panels/"
+- Solar Water Heating: "https://energysavingtrust.org.uk/advice/solar-water-heating/"
+
+CATEGORY: GENERAL & BENCHMARKS
+- OFGEM Average Usage: "https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-use-explained"
+- EPC Certificate Search: "https://www.gov.uk/find-energy-certificate"
+- London Building Stock Model: "https://data.london.gov.uk/dataset/london-building-stock-model"
+`;
+
 export const analyzeHomeData = async (
   billFiles: { mimeType: string; data: string; name?: string }[],
   homeImages: string[],
@@ -41,6 +79,7 @@ export const analyzeHomeData = async (
        - Identify patterns (e.g., winter peaks). 
        - GENERATE A FULL 12-MONTH TIMELINE of monthly totals ('monthlyUsage' array) representing the last year (or a typical year) based on the data provided. 
        - IMPORTANT: The 'monthlyUsage' array MUST contain exactly 12 items. If you have fewer bills, infer missing months based on seasonality. If you have more bills, use the most recent 12 months.
+       - IMPORTANT: The 'label' for each month MUST be in the format "MMM YY" (e.g., "Jan 24", "Feb 24").
     3. EPC (Energy Performance Certificate):
        - PRIMARY GOAL: Look for an "Energy Rating" or "EPC" on the bill documents or try to infer the REAL rating from the specific address if known/visible.
        - FALLBACK: If no official rating is found, ESTIMATE the EPC rating (A-G) based on visual evidence (insulation thickness, glazing type, boiler age).
@@ -48,15 +87,15 @@ export const analyzeHomeData = async (
     4. Identify Inefficiencies: Analyze photos/video for windows, insulation gaps, appliances.
     5. Generate Plan: Create a retrofit/improvement plan tailored STRICTLY to the User Profile.
     6. Benchmarking: Compare against typical homes in the region (infer location from currency/text).
-    7. Sources: Cite specific official data sources. 
-       CRITICAL - USE ONLY THESE VERIFIED STABLE URLS to avoid broken links (404s):
-       - UK OFGEM: "https://www.ofgem.gov.uk/information-consumers"
-       - UK Energy Saving Trust: "https://energysavingtrust.org.uk/energy-at-home"
-       - UK Government EPC: "https://www.gov.uk/find-energy-certificate"
-       - US EIA: "https://www.eia.gov/consumption/residential/"
-       - US Energy Saver: "https://www.energy.gov/save"
-       If you need to cite another source, use the main homepage URL (e.g., "https://www.bbc.co.uk") rather than a deep link that might rot.
-
+    7. Sources & Citations (STRICT RULE): 
+       - You MUST cite sources for every recommendation using bracketed numbers like [1], [2].
+       - The 'dataSources' array in your JSON output MUST be populated by selecting the MOST RELEVANT URL from the "VERIFIED SOURCE LIBRARY" below.
+       - DO NOT hallucinate URLs. Use EXACTLY the URLs provided in the library.
+       
+    === VERIFIED SOURCE LIBRARY ===
+    ${VERIFIED_SOURCES_LIBRARY}
+    ===============================
+       
     Output PURE JSON matching the following structure:
     {
       "customerName": "Extracted Name or 'Valued Customer'",
@@ -67,7 +106,7 @@ export const analyzeHomeData = async (
       "projectedMonthlyAvg": number,
       "currency": "USD" or "GBP" or "EUR",
       "monthlyUsage": [
-        { "label": "Jan", "kwh": 300, "cost": 80 }, ...
+        { "label": "Jan 24", "kwh": 300, "cost": 80 }, ...
       ],
       "epc": {
         "current": "D",
@@ -77,15 +116,15 @@ export const analyzeHomeData = async (
       "comparison": {
         "similarHomeAvgCost": number,
         "efficiencyPercentile": number,
-        "description": "Comparison text"
+        "description": "Comparison text with citations like [1] or [3]."
       },
       "dataSources": [
-        { "title": "Source Name", "url": "https://source.url" }
+        { "title": "Exact Title from Library", "url": "Exact URL from Library" }
       ],
       "recommendations": [
         {
           "title": "Short title",
-          "description": "Detailed explanation",
+          "description": "Detailed explanation with citations like [2].",
           "estimatedCost": "Range string",
           "estimatedAnnualSavings": "Range string",
           "impact": "High" | "Medium" | "Low",

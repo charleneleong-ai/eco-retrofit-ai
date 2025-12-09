@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { SavedAnalysis } from '../types';
 import { deleteAnalysis } from '../services/dbService';
-import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck } from 'lucide-react';
+import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin } from 'lucide-react';
 
 interface HistoryViewProps {
   items: SavedAnalysis[];
@@ -77,7 +77,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
 
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 {/* Left: Info */}
-                <div className="space-y-3">
+                <div className="space-y-3 flex-1 min-w-0">
                   <div className="flex items-center gap-3">
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide border flex items-center gap-1.5 ${
                       item.userType === 'homeowner' 
@@ -93,20 +93,30 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
                     </span>
                   </div>
                   
-                  <h3 className="font-bold text-lg text-slate-800 line-clamp-1">
-                    {item.result.summary.split('\n')[0].replace(/^[#* ]+/, '')}
-                  </h3>
+                  {/* Name and Address */}
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-800 truncate">
+                      {item.result.customerName || 'Retrofit Analysis'}
+                    </h3>
+                    
+                    {item.result.address && (
+                      <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1 truncate">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{item.result.address}</span>
+                      </p>
+                    )}
+                  </div>
                   
-                  <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                      <FileCheck className="w-4 h-4 text-slate-400" />
+                  <div className="flex items-center gap-4 text-sm text-slate-500 pt-1">
+                    <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 text-xs font-medium">
+                      <FileCheck className="w-3.5 h-3.5 text-slate-400" />
                       {item.billFiles.length} Bills Saved
                     </span>
                   </div>
                 </div>
 
                 {/* Right: Stats & Actions */}
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-6 shrink-0">
                   <div className="text-right">
                     <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Est. Annual Savings</p>
                     <p className="text-2xl font-bold text-emerald-600">

@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface EPCBadgeProps {
@@ -25,10 +26,10 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ current, potential }) => {
               Higher cost efficiency <span className="mx-1">•</span> Lower CO₂ emissions
             </p>
          </div>
-         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Current</span>
       </div>
       
-      <div className="space-y-2 relative pr-16"> 
+      {/* Container with right padding to reserve space for the badges */}
+      <div className="space-y-2 relative pr-28"> 
         {grades.map((item) => (
            <div key={item.grade} className="flex items-center h-8 relative group">
               {/* Colored Bar */}
@@ -44,37 +45,42 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ current, potential }) => {
                 <span className="text-[10px] opacity-80 font-normal">{item.range}</span>
               </div>
 
-              {/* Current Indicator Arrow (Right Side) */}
+              {/* Current Indicator Badge (Right Aligned) */}
               {current === item.grade && (
-                 <div className="absolute right-0 flex items-center animate-fade-in-left z-10" style={{ right: '-60px' }}>
-                    <div className="bg-slate-800 text-white text-sm font-bold h-8 px-3 flex items-center justify-center shadow-lg relative">
+                 <div className="absolute right-0 flex items-center z-10 animate-fade-in-left">
+                    <div className="bg-slate-900 text-white text-xs font-bold h-8 px-3 min-w-[85px] flex items-center justify-center shadow-lg relative rounded-sm">
                        Current
-                       {/* Arrow pointing left into the bar */}
-                       <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[10px] border-r-slate-800"></div>
+                       {/* Arrow pointing left */}
+                       <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[8px] border-r-slate-900"></div>
                     </div>
                  </div>
               )}
 
-              {/* Potential Indicator (Ghosted inline or secondary marker) */}
+              {/* Potential Indicator Badge (Right Aligned) */}
               {potential === item.grade && potential !== current && (
-                 <div className="absolute left-full ml-4 flex items-center opacity-40 hover:opacity-100 transition-opacity" style={{ left: item.width }}>
-                     <div className="text-xs font-bold text-slate-500 flex items-center gap-1 whitespace-nowrap">
-                        <div className="w-0 h-0 border-y-[4px] border-y-transparent border-l-[6px] border-l-slate-400"></div>
+                 <div className="absolute right-0 flex items-center z-10 animate-fade-in-left">
+                     <div className="bg-slate-400 text-white text-xs font-bold h-8 px-3 min-w-[85px] flex items-center justify-center shadow-sm relative rounded-sm">
                         Potential
+                        {/* Arrow pointing left */}
+                        <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[8px] border-r-slate-400"></div>
                      </div>
                  </div>
               )}
            </div>
         ))}
-
-        {/* Vertical alignment line for potential if desired, or just keep simple */}
-        <div className="absolute top-0 bottom-0 right-[-60px] w-px bg-slate-100 -z-10"></div>
+        
+        {/* Subtle vertical guide line for alignment */}
+        <div className="absolute top-0 bottom-0 right-[85px] w-px bg-slate-100 border-l border-dashed border-slate-200 -z-10"></div>
       </div>
       
       <div className="mt-6 pt-4 border-t border-slate-100 flex flex-col gap-2">
-         <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="w-3 h-3 bg-slate-800 block"></span> Current Rating
-            <span className="w-3 h-3 bg-slate-300 block ml-4"></span> Potential Rating
+         <div className="flex items-center gap-4 text-xs text-slate-500">
+            <div className="flex items-center gap-2">
+                <span className="w-3 h-3 bg-slate-900 block rounded-sm"></span> Current
+            </div>
+            <div className="flex items-center gap-2">
+                <span className="w-3 h-3 bg-slate-400 block rounded-sm"></span> Potential
+            </div>
          </div>
          <p className="text-xs text-slate-400 italic">
            * Graph mimics official UK EPC format. Actual certification requires a qualified assessor.

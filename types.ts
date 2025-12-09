@@ -25,6 +25,7 @@ export interface UsageMetric {
   label: string;
   kwh: number;
   cost: number;
+  dateRange?: string;
 }
 
 export interface UsageBreakdown {

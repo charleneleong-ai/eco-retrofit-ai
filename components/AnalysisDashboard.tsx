@@ -4,8 +4,8 @@ import { AnalysisResult } from '../types';
 import SavingsChart from './SavingsChart';
 import UsageTrendsChart from './UsageTrendsChart';
 import EPCBadge from './EPCBadge';
-import ReactMarkdown from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download } from 'lucide-react';
+import ReactMarkdown, { Components } from 'react-markdown';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -40,7 +40,77 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
       case 'image': return <ImageIcon className="w-3 h-3" />;
       default: return <FileText className="w-3 h-3" />;
     }
-  }
+  };
+
+  const scrollToReference = (e: React.MouseEvent, index: number) => {
+    e.preventDefault();
+    const element = document.getElementById(`ref-${index}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add a temporary highlight effect
+      element.classList.add('bg-yellow-100');
+      setTimeout(() => element.classList.remove('bg-yellow-100'), 2000);
+    }
+  };
+
+  // Helper to parse text with [1], [2] citations and make them links
+  const renderTextWithCitations = (text: string) => {
+    // Regex to match [1], [12], etc.
+    const parts = text.split(/(\[\d+\])/g);
+    
+    return parts.map((part, i) => {
+      const match = part.match(/\[(\d+)\]/);
+      if (match) {
+        const index = parseInt(match[1]);
+        return (
+          <a
+            key={i}
+            href={`#ref-${index}`}
+            onClick={(e) => scrollToReference(e, index)}
+            className="text-emerald-600 font-bold hover:underline cursor-pointer inline-block mx-0.5"
+            title={`Go to source [${index}]`}
+          >
+            {part}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
+  const getPrimarySourceUrl = (description: string): string | null => {
+    const match = description.match(/\[(\d+)\]/);
+    if (match) {
+      const index = parseInt(match[1]);
+      // dataSources is 0-indexed, citation is 1-indexed
+      if (data.dataSources && data.dataSources[index - 1]) {
+        return data.dataSources[index - 1].url;
+      }
+    }
+    return null;
+  };
+
+  // Custom renderer for ReactMarkdown to support citations in summary
+  const MarkdownComponents: Components = {
+    p: ({ children }) => {
+      const processed = React.Children.map(children, (child) => {
+        if (typeof child === 'string') {
+          return renderTextWithCitations(child);
+        }
+        return child;
+      });
+      return <p className="mb-4">{processed}</p>;
+    },
+    li: ({ children }) => {
+      const processed = React.Children.map(children, (child) => {
+        if (typeof child === 'string') {
+          return renderTextWithCitations(child);
+        }
+        return child;
+      });
+      return <li className="mb-1">{processed}</li>;
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fade-in pb-20">
@@ -108,7 +178,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
         <div className="lg:col-span-2 bg-white rounded-2xl p-8 shadow-sm border border-slate-200">
           <h3 className="text-lg font-bold text-slate-800 mb-4">Executive Summary</h3>
           <div className="prose prose-slate max-w-none text-slate-600">
-            <ReactMarkdown>{data.summary}</ReactMarkdown>
+            <ReactMarkdown components={MarkdownComponents}>{data.summary}</ReactMarkdown>
           </div>
         </div>
 
@@ -146,7 +216,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
                 <p className="text-2xl font-bold text-slate-800">{data.currency}{data.comparison.similarHomeAvgCost}<span className="text-sm font-normal text-slate-400">/mo</span></p>
               </div>
 
-              <p className="text-sm text-slate-600 italic leading-relaxed line-clamp-3">"{data.comparison.description}"</p>
+              <div className="text-sm text-slate-600 italic leading-relaxed line-clamp-3">
+                 "{renderTextWithCitations(data.comparison.description)}"
+              </div>
             </div>
           </div>
 
@@ -169,42 +241,63 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
           Recommended Actions
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {data.recommendations.map((rec, idx) => (
-            <div key={idx} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-slate-50 rounded-lg">
-                    {getCategoryIcon(rec.category)}
+          {data.recommendations.map((rec, idx) => {
+            const sourceUrl = getPrimarySourceUrl(rec.description);
+            
+            return (
+              <div key={idx} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hover:shadow-md transition-shadow flex flex-col group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-50 rounded-lg group-hover:bg-emerald-50 transition-colors">
+                      {getCategoryIcon(rec.category)}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800">{rec.title}</h4>
+                      <span className="text-xs font-medium text-slate-500">{rec.category}</span>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-800">{rec.title}</h4>
-                    <span className="text-xs font-medium text-slate-500">{rec.category}</span>
-                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold border flex items-center justify-center text-center min-w-[80px] whitespace-nowrap ${getImpactColor(rec.impact)}`}>
+                    {rec.impact} Impact
+                  </span>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold border flex items-center justify-center text-center min-w-[80px] ${getImpactColor(rec.impact)}`}>
-                  {rec.impact} Impact
-                </span>
+                
+                <div className="text-slate-600 text-sm mb-4 min-h-[60px] flex-grow">
+                  {renderTextWithCitations(rec.description)}
+                </div>
+                
+                <div className="pt-4 border-t border-slate-100 mt-auto">
+                   <div className="flex items-end justify-between gap-2">
+                     <div className="flex gap-4 sm:gap-6">
+                       <div>
+                          <p className="text-slate-400 text-[10px] uppercase font-semibold tracking-wider mb-0.5">Est. Cost</p>
+                          <p className="font-semibold text-slate-700 text-sm">{rec.estimatedCost}</p>
+                       </div>
+                       <div>
+                          <p className="text-slate-400 text-[10px] uppercase font-semibold tracking-wider mb-0.5">Annual Savings</p>
+                          <p className="font-semibold text-emerald-600 text-sm">{rec.estimatedAnnualSavings}</p>
+                       </div>
+                     </div>
+                     
+                     {sourceUrl && (
+                       <a 
+                         href={sourceUrl} 
+                         target="_blank" 
+                         rel="noopener noreferrer"
+                         className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg hover:bg-emerald-100 hover:border-emerald-200 transition-all group/btn"
+                       >
+                      <ArrowRight className="w-3 h-3 transition-transform group-hover/btn:translate-x-0.5" />
+                       </a>
+                     )}
+                   </div>
+                </div>
               </div>
-              
-              <p className="text-slate-600 text-sm mb-4 min-h-[60px]">{rec.description}</p>
-              
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-sm">
-                 <div>
-                    <p className="text-slate-400 text-xs">Est. Cost</p>
-                    <p className="font-semibold text-slate-700">{rec.estimatedCost}</p>
-                 </div>
-                 <div className="text-right">
-                    <p className="text-slate-400 text-xs">Yearly Savings</p>
-                    <p className="font-semibold text-emerald-600">{rec.estimatedAnnualSavings}</p>
-                 </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* References Footer */}
-      <div className="border-t border-slate-200 pt-8 mt-12">
+      <div className="border-t border-slate-200 pt-8 mt-12" id="references-section">
          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             {/* References / Data Sources */}
             <div>
@@ -214,7 +307,11 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
                </h4>
                <ol className="list-decimal list-inside space-y-3 text-xs text-slate-600">
                   {data.dataSources && data.dataSources.map((source, i) => (
-                    <li key={i} className="pl-1">
+                    <li 
+                      key={i} 
+                      id={`ref-${i + 1}`} 
+                      className="pl-1 scroll-mt-24 transition-colors duration-500 rounded p-1"
+                    >
                       <a 
                          href={source.url}
                          target="_blank"
@@ -242,6 +339,8 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
                         {doc.url ? (
                           <a 
                             href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:border-emerald-300 hover:shadow-sm transition-all group"
                           >
                              {getFileIcon(doc.type)}

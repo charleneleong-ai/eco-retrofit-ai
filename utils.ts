@@ -31,6 +31,7 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
   let currentWeekCost = 0;
   let currentWeekKwh = 0;
   let dayCount = 0;
+  let weekStartLabel = '';
 
   monthlyData.forEach((m) => {
     // Sanitize input values to ensure they are numbers
@@ -40,6 +41,13 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
     const daysInMonth = 30; // Approx constant for visual consistency
     const dailyBaseCost = safeCost / daysInMonth;
     const dailyBaseKwh = safeKwh / daysInMonth;
+    
+    // Attempt to extract year from label (e.g. "Jan 25" -> "25")
+    const labelParts = m.label.split(' ');
+    const monthStr = labelParts[0];
+    const yearStr = labelParts.length > 1 ? labelParts[1] : '';
+    // Normalize year string to 2 digits if possible (e.g. 2025 -> 25) for cleaner charts
+    const shortYear = yearStr.length === 4 ? yearStr.slice(2) : yearStr;
 
     for (let i = 1; i <= daysInMonth; i++) {
       // Add natural variance (+/- 30%)
@@ -47,22 +55,31 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
       const cost = dailyBaseCost * variance;
       const kwh = dailyBaseKwh * variance;
 
+      // Create daily label like "1 Jan 25"
+      const dailyLabel = `${i} ${monthStr}${shortYear ? ` '${shortYear}` : ''}`;
+
       daily.push({
-        label: `${m.label} ${i}`,
+        label: dailyLabel,
         cost: parseFloat(cost.toFixed(2)),
         kwh: Math.round(kwh * 10) / 10
       });
 
+      // Track week start/end
+      dayCount++;
+      if (dayCount % 7 === 1) {
+        weekStartLabel = dailyLabel;
+      }
+
       // Accumulate weekly
       currentWeekCost += cost;
       currentWeekKwh += kwh;
-      dayCount++;
 
       if (dayCount % 7 === 0) {
         weekly.push({
-          label: `Week ${weekly.length + 1}`,
+          label: `W${weekly.length + 1}${shortYear ? `'${shortYear}` : ''}`,
           cost: parseFloat(currentWeekCost.toFixed(2)),
-          kwh: Math.round(currentWeekKwh)
+          kwh: Math.round(currentWeekKwh),
+          dateRange: `${weekStartLabel} - ${dailyLabel}`
         });
         currentWeekCost = 0;
         currentWeekKwh = 0;
@@ -72,10 +89,19 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
   
   // Push remaining partial week if any substantial data exists
   if (dayCount % 7 !== 0 && currentWeekCost > 1) {
+     // Grab year from the last month processed
+     const lastMonth = monthlyData[monthlyData.length - 1];
+     const parts = lastMonth.label.split(' ');
+     const year = parts.length > 1 ? (parts[1].length === 4 ? parts[1].slice(2) : parts[1]) : '';
+     
+     // Use the very last generated daily label as the end of the partial week
+     const lastDailyLabel = daily.length > 0 ? daily[daily.length - 1].label : '';
+
      weekly.push({
-        label: `Week ${weekly.length + 1}`,
+        label: `W${weekly.length + 1}${year ? `'${year}` : ''}`,
         cost: parseFloat(currentWeekCost.toFixed(2)),
-        kwh: Math.round(currentWeekKwh)
+        kwh: Math.round(currentWeekKwh),
+        dateRange: `${weekStartLabel} - ${lastDailyLabel}`
       });
   }
 

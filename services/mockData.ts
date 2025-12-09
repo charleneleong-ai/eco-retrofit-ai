@@ -5,18 +5,18 @@ import { generateDerivedUsageData } from '../utils';
 // Helper to generate granular data from monthly totals
 const generateMockUsageData = () => {
   const monthlyTotals = [
-    { month: 'Dec', cost: 159.75, kwh: 168 + 1395 }, // Dec 24
-    { month: 'Jan', cost: 183.96, kwh: 235 + 1510 }, // Jan 25
-    { month: 'Feb', cost: 133.19, kwh: 211 + 851 },  // Feb 25
-    { month: 'Mar', cost: 93.18, kwh: 186 + 344 },   // Mar 25
-    { month: 'Apr', cost: 82.60, kwh: 160 + 266 },   // Apr 25
-    { month: 'May', cost: 97.41, kwh: 216 + 261 },   // May 25
-    { month: 'Jun', cost: 84.46, kwh: 189 + 180 },   // Jun 25
-    { month: 'Jul', cost: 89.43, kwh: 209 + 171 },   // Jul 25
-    { month: 'Aug', cost: 59.74, kwh: 123 + 69 },    // Aug 25
-    { month: 'Sep', cost: 97.27, kwh: 203 + 325 },   // Sep 25
-    { month: 'Oct', cost: 98.95, kwh: 213 + 296 },   // Oct 25
-    { month: 'Nov', cost: 145.00, kwh: 1400 },       // Nov 25 (Projected based on trend)
+    { month: 'Dec 24', cost: 159.75, kwh: 168 + 1395 }, // Dec 24
+    { month: 'Jan 25', cost: 183.96, kwh: 235 + 1510 }, // Jan 25
+    { month: 'Feb 25', cost: 133.19, kwh: 211 + 851 },  // Feb 25
+    { month: 'Mar 25', cost: 93.18, kwh: 186 + 344 },   // Mar 25
+    { month: 'Apr 25', cost: 82.60, kwh: 160 + 266 },   // Apr 25
+    { month: 'May 25', cost: 97.41, kwh: 216 + 261 },   // May 25
+    { month: 'Jun 25', cost: 84.46, kwh: 189 + 180 },   // Jun 25
+    { month: 'Jul 25', cost: 89.43, kwh: 209 + 171 },   // Jul 25
+    { month: 'Aug 25', cost: 59.74, kwh: 123 + 69 },    // Aug 25
+    { month: 'Sep 25', cost: 97.27, kwh: 203 + 325 },   // Sep 25
+    { month: 'Oct 25', cost: 98.95, kwh: 213 + 296 },   // Oct 25
+    { month: 'Nov 25', cost: 145.00, kwh: 1400 },       // Nov 25 (Projected based on trend)
   ];
 
   return generateDerivedUsageData(monthlyTotals.map(m => ({ 
@@ -40,7 +40,7 @@ Based on the analysis of your **OVO Energy** bills from December 2024 to Novembe
 
 Your energy usage follows a distinct **seasonal pattern**, with gas consumption peaking significantly in January (~1500 kWh) compared to August (~70 kWh). This indicates that **space heating is the primary driver of your costs**, accounting for over 65% of your winter bills. 
 
-Your electricity usage is relatively consistent, averaging around 190 kWh per month, which is slightly higher than average for a single-occupant flat [1]. As a renter in **London (N5)**, structural upgrades are likely off-limits [2], so this plan focuses on **heat retention**, **draft proofing**, and **smart heating controls** to lower your bills without angering your landlord.
+Your electricity usage is relatively consistent, averaging around 190 kWh per month, which is slightly higher than average for a single-occupant flat [1]. As a renter in **London (N5)**, structural upgrades are likely off-limits, so this plan focuses on **heat retention** [2], **smart heating controls** [3], and efficient appliances to lower your bills without angering your landlord.
   `,
   epc: {
     current: "D",
@@ -68,12 +68,15 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
   comparison: {
     similarHomeAvgCost: 95,
     efficiencyPercentile: 45,
-    description: "Your home consumes 15% more energy than similar sized flats in London N5 [3]. The discrepancy is largely due to higher-than-average heating costs in winter months."
+    description: "Your home consumes 15% more energy than similar sized flats in London N5 [5]. The discrepancy is largely due to higher-than-average heating costs in winter months."
   },
   dataSources: [
-    { title: "OFGEM Average Usage Figures", url: "https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-usage" },
-    { title: "Energy Saving Trust (Renters Advice)", url: "https://energysavingtrust.org.uk/energy-saving-tips-renters/" },
-    { title: "London Energy Map & Stock Model", url: "https://www.london.gov.uk/programmes-strategies/environment-and-climate-change/energy-and-buildings/london-building-stock-model" }
+    { title: "OFGEM Average Usage Figures", url: "https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-use-explained" },
+    { title: "EST: Draught Proofing & Windows", url: "https://energysavingtrust.org.uk/advice/draught-proofing/" },
+    { title: "EST: Thermostats & Controls", url: "https://energysavingtrust.org.uk/advice/thermostats-and-heating-controls/" },
+    { title: "EST: Home Appliances", url: "https://energysavingtrust.org.uk/advice/home-appliances/" },
+    { title: "London Building Stock Model", url: "https://data.london.gov.uk/dataset/london-building-stock-model" },
+    { title: "EST: Fixing Damp & Condensation", url: "https://energysavingtrust.org.uk/advice/fixing-damp-and-condensation/" }
   ],
   recommendations: [
     {
@@ -86,7 +89,7 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
     },
     {
       title: "Smart Radiator Valves (TRVs)",
-      description: "Install smart valves on radiators to heat only the rooms you are using. Compatible with most boilers and easy to remove when you move out.",
+      description: "Install smart valves on radiators to heat only the rooms you are using. Compatible with most boilers and easy to remove when you move out [3].",
       estimatedCost: "£150 - £200",
       estimatedAnnualSavings: "£70 - £90",
       impact: "High",
@@ -102,7 +105,7 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
     },
     {
       title: "Portable Induction Hob",
-      description: "Use a plug-in induction hob for daily cooking instead of the gas stove. It's more efficient and improves indoor air quality.",
+      description: "Use a plug-in induction hob for daily cooking instead of the gas stove. It's more efficient and improves indoor air quality [4].",
       estimatedCost: "£40 - £60",
       estimatedAnnualSavings: "£30 - £50",
       impact: "Medium",
