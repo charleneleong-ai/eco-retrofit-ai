@@ -34,15 +34,30 @@ export default function App() {
   useEffect(() => {
     let interval: number;
     if (state === 'analyzing') {
-      const messages = [
-        "Reading energy bills...",
-        "Scanning home photos for inefficiencies...",
-        "Processing video walkthrough...",
+      const messages: string[] = [];
+
+      // Conditionally add messages based on what was uploaded
+      if (billFiles.length > 0) {
+        messages.push("Reading energy bills...");
+      }
+      if (homeFiles.length > 0) {
+        messages.push("Scanning home photos for inefficiencies...");
+      }
+      if (videoFiles.length > 0) {
+        messages.push("Processing video walkthrough...");
+      }
+
+      // Always add the core analysis steps
+      messages.push(
         "Identifying insulation gaps...",
         "Calculating potential savings...",
         "Comparing with neighborhood benchmarks...",
         "Finalizing your eco-retrofit plan..."
-      ];
+      );
+
+      // If we have no specific file messages (e.g. demo load where files state is empty but we want a generic start),
+      // we ensure there's at least one message or it starts with the core steps.
+      
       let i = 0;
       setLoadingMsg(messages[0]);
       interval = window.setInterval(() => {
@@ -51,7 +66,7 @@ export default function App() {
       }, 3000);
     }
     return () => clearInterval(interval);
-  }, [state]);
+  }, [state, billFiles.length, homeFiles.length, videoFiles.length]);
 
   const loadHistory = async () => {
     try {
@@ -118,15 +133,17 @@ export default function App() {
 
   const handleLoadDemo = async () => {
     setState('analyzing');
+    // Note: useEffect will overwrite this with the first generic message shortly, 
+    // but usually "Identifying insulation gaps..." is a fine start for a demo.
     setLoadingMsg("Loading sample data...");
     
-    // Simulate slight network delay for realism
     setTimeout(async () => {
       setAnalysisResult(MOCK_ANALYSIS_RESULT);
       // Demo data is specifically for a renter scenario
       setUserType('renter');
       
       // Generate mock file entries based on the result so history count matches
+      // This ensures the "Bills Saved" count in history reflects the 11 mock bills
       const mockFiles = MOCK_ANALYSIS_RESULT.sourceDocuments?.map(doc => ({
         name: doc.name,
         type: doc.type === 'pdf' ? 'application/pdf' : doc.type === 'image' ? 'image/jpeg' : 'video/mp4',

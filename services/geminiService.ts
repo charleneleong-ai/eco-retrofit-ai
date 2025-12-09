@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult, UserType, SourceDoc } from '../types';
+import { generateDerivedUsageData } from '../utils';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -38,7 +39,8 @@ export const analyzeHomeData = async (
     1. Extract Customer Details: Look for the customer Name and Property Address on the bills.
     2. Analyze Usage & Costs: 
        - Identify patterns (e.g., winter peaks). 
-       - GENERATE A FULL 12-MONTH TIMELINE ('monthly' array) representing the last year (or a typical year) based on the data provided. Account for seasonality.
+       - GENERATE A FULL 12-MONTH TIMELINE of monthly totals ('monthlyUsage' array) representing the last year (or a typical year) based on the data provided. 
+       - IMPORTANT: The 'monthlyUsage' array MUST contain exactly 12 items. If you have fewer bills, infer missing months based on seasonality. If you have more bills, use the most recent 12 months.
     3. EPC (Energy Performance Certificate):
        - PRIMARY GOAL: Look for an "Energy Rating" or "EPC" on the bill documents or try to infer the REAL rating from the specific address if known/visible.
        - FALLBACK: If no official rating is found, ESTIMATE the EPC rating (A-G) based on visual evidence (insulation thickness, glazing type, boiler age).
@@ -64,11 +66,9 @@ export const analyzeHomeData = async (
       "currentMonthlyAvg": number,
       "projectedMonthlyAvg": number,
       "currency": "USD" or "GBP" or "EUR",
-      "usageBreakdown": {
-        "daily": [{ "label": "Mon", "kwh": 10, "cost": 2.5 }, ...],
-        "weekly": [{ "label": "Week 1", "kwh": 70, "cost": 15 }, ...],
-        "monthly": [{ "label": "Jan", "kwh": 300, "cost": 80 }, ...] // Must contain 12 months
-      },
+      "monthlyUsage": [
+        { "label": "Jan", "kwh": 300, "cost": 80 }, ...
+      ],
       "epc": {
         "current": "D",
         "potential": "B",
@@ -144,22 +144,9 @@ export const analyzeHomeData = async (
             currentMonthlyAvg: { type: Type.NUMBER },
             projectedMonthlyAvg: { type: Type.NUMBER },
             currency: { type: Type.STRING },
-            usageBreakdown: {
-              type: Type.OBJECT,
-              properties: {
-                daily: { 
-                  type: Type.ARRAY, 
-                  items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
-                },
-                weekly: { 
-                  type: Type.ARRAY, 
-                  items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
-                },
-                monthly: { 
-                  type: Type.ARRAY, 
-                  items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
-                }
-              }
+            monthlyUsage: { 
+              type: Type.ARRAY, 
+              items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
             },
             epc: {
               type: Type.OBJECT,
@@ -206,13 +193,23 @@ export const analyzeHomeData = async (
               }
             }
           },
-          required: ['summary', 'currentMonthlyAvg', 'projectedMonthlyAvg', 'currency', 'recommendations', 'comparison', 'dataSources', 'epc']
+          required: ['summary', 'currentMonthlyAvg', 'projectedMonthlyAvg', 'currency', 'recommendations', 'comparison', 'dataSources', 'epc', 'monthlyUsage']
         }
       }
     });
 
     if (response.text) {
-      const result = JSON.parse(response.text) as AnalysisResult;
+      const rawResult = JSON.parse(response.text);
+      
+      // Programmatically generate daily and weekly breakdowns from the monthly data
+      const usageBreakdown = generateDerivedUsageData(rawResult.monthlyUsage || []);
+      
+      const result: AnalysisResult = {
+        ...rawResult,
+        usageBreakdown // Inject the generated granular data
+      };
+      // Remove the temp property to match strict types if needed, though optional properties are fine.
+      delete (result as any).monthlyUsage;
       
       // Capture source documents using new type
       const currentSources: SourceDoc[] = [];

@@ -1,5 +1,6 @@
 
-import { AnalysisResult, UsageMetric } from '../types';
+import { AnalysisResult } from '../types';
+import { generateDerivedUsageData } from '../utils';
 
 // Helper to generate granular data from monthly totals
 const generateMockUsageData = () => {
@@ -18,54 +19,11 @@ const generateMockUsageData = () => {
     { month: 'Nov', cost: 145.00, kwh: 1400 },       // Nov 25 (Projected based on trend)
   ];
 
-  const daily: UsageMetric[] = [];
-  const weekly: UsageMetric[] = [];
-  
-  let currentWeekCost = 0;
-  let currentWeekKwh = 0;
-  let dayCount = 0;
-
-  // Generate 365 days of data
-  monthlyTotals.forEach((m) => {
-    // Determine days in month (approximate)
-    const daysInMonth = 30; 
-    const dailyBaseCost = m.cost / daysInMonth;
-    const dailyBaseKwh = m.kwh / daysInMonth;
-
-    for (let i = 1; i <= daysInMonth; i++) {
-      // Add natural variance (+/- 25%)
-      const variance = 0.75 + Math.random() * 0.5;
-      const cost = dailyBaseCost * variance;
-      const kwh = dailyBaseKwh * variance;
-
-      daily.push({
-        label: `${m.month} ${i}`,
-        cost: parseFloat(cost.toFixed(2)),
-        kwh: Math.round(kwh * 10) / 10
-      });
-
-      // Accumulate weekly
-      currentWeekCost += cost;
-      currentWeekKwh += kwh;
-      dayCount++;
-
-      if (dayCount % 7 === 0) {
-        weekly.push({
-          label: `Week ${weekly.length + 1}`,
-          cost: parseFloat(currentWeekCost.toFixed(2)),
-          kwh: Math.round(currentWeekKwh)
-        });
-        currentWeekCost = 0;
-        currentWeekKwh = 0;
-      }
-    }
-  });
-
-  return {
-    daily,
-    weekly,
-    monthly: monthlyTotals.map(m => ({ label: m.month, cost: m.cost, kwh: m.kwh }))
-  };
+  return generateDerivedUsageData(monthlyTotals.map(m => ({ 
+      label: m.month, 
+      cost: m.cost, 
+      kwh: m.kwh 
+  })));
 };
 
 const usageData = generateMockUsageData();

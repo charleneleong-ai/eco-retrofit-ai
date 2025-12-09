@@ -12,7 +12,7 @@ interface UsageTrendsChartProps {
 const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) => {
   const [view, setView] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [metric, setMetric] = useState<'kwh' | 'cost'>('cost');
-  const [showAverage, setShowAverage] = useState(false);
+  const [showAverage, setShowAverage] = useState(true);
   const [brushRange, setBrushRange] = useState<{ startIndex?: number; endIndex?: number }>({});
 
   // Reset brush range when view changes to avoid index out of bounds
@@ -34,13 +34,16 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
     const visibleData = chartData.slice(start, end + 1);
     if (visibleData.length === 0) return 0;
 
-    const total = visibleData.reduce((acc, item) => acc + (item[metric] || 0), 0);
+    const total = visibleData.reduce((acc, item) => {
+        const val = item[metric];
+        return acc + (typeof val === 'number' && !isNaN(val) ? val : 0);
+    }, 0);
     return total / visibleData.length;
   }, [chartData, metric, brushRange]);
 
   const formattedAverage = metric === 'cost' 
-    ? `${currency}${averageValue.toFixed(2)}` 
-    : `${averageValue.toFixed(1)} kWh`;
+    ? `${currency}${isNaN(averageValue) ? '0.00' : averageValue.toFixed(2)}` 
+    : `${isNaN(averageValue) ? '0.0' : averageValue.toFixed(1)} kWh`;
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
@@ -100,10 +103,13 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
               <Tooltip 
                 cursor={{ fill: '#f8fafc' }}
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                formatter={(value: number) => [
-                  metric === 'cost' ? `${currency}${value.toFixed(2)}` : `${value.toFixed(1)} kWh`, 
-                  metric === 'cost' ? 'Cost' : 'Energy'
-                ]}
+                formatter={(value: number) => {
+                  if (isNaN(value) || value === undefined || value === null) return ['N/A', metric === 'cost' ? 'Cost' : 'Energy'];
+                  return [
+                    metric === 'cost' ? `${currency}${value.toFixed(2)}` : `${value.toFixed(1)} kWh`, 
+                    metric === 'cost' ? 'Cost' : 'Energy'
+                  ];
+                }}
               />
               <Bar 
                 dataKey={metric} 
@@ -112,7 +118,7 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
                 barSize={30}
               />
               
-              {showAverage && (
+              {showAverage && !isNaN(averageValue) && (
                 <ReferenceLine 
                     y={averageValue} 
                     stroke="#f59e0b" 

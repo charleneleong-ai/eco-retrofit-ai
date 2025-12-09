@@ -181,7 +181,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
                     <span className="text-xs font-medium text-slate-500">{rec.category}</span>
                   </div>
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getImpactColor(rec.impact)}`}>
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold border flex items-center justify-center text-center min-w-[80px] ${getImpactColor(rec.impact)}`}>
                   {rec.impact} Impact
                 </span>
               </div>
