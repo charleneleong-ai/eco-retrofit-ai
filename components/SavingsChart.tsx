@@ -1,16 +1,18 @@
+
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface SavingsChartProps {
   current: number;
   projected: number;
   currency: string;
+  label?: string;
 }
 
-const SavingsChart: React.FC<SavingsChartProps> = ({ current, projected, currency }) => {
+const SavingsChart: React.FC<SavingsChartProps> = ({ current, projected, currency, label = 'Monthly Cost' }) => {
   const data = [
     {
-      name: 'Monthly Cost',
+      name: label,
       Current: current,
       Projected: projected,
     },
@@ -29,10 +31,9 @@ const SavingsChart: React.FC<SavingsChartProps> = ({ current, projected, currenc
           <YAxis type="category" dataKey="name" hide width={10} />
           <Tooltip 
             cursor={{fill: 'transparent'}}
-            formatter={(value: number) => [`${currency}${value}`, '']}
+            formatter={(value: number) => [`${currency}${value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`, '']}
             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
           />
-          <Legend />
           <Bar dataKey="Current" fill="#94a3b8" radius={[0, 4, 4, 0]} barSize={40} />
           <Bar dataKey="Projected" fill="#10b981" radius={[0, 4, 4, 0]} barSize={40} />
         </BarChart>

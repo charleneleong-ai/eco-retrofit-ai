@@ -463,6 +463,11 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
       }
   };
 
+  const totalValue = useMemo(() => {
+    if (!visibleData.length) return 0;
+    return visibleData.reduce((acc, item) => acc + (item[metric] || 0), 0);
+  }, [visibleData, metric]);
+
   const averageValue = useMemo(() => {
     if (!visibleData.length) return 0;
     const total = visibleData.reduce((acc, item) => acc + (item[metric] || 0), 0);
@@ -607,14 +612,27 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
               </div>
            </div>
            
-           {/* Average Display */}
-           <div className="flex items-center gap-2 self-end">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Average:</span>
-              <span className="text-lg font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 border-dashed flex items-center">
-                {metric === 'cost' ? currencySymbol : ''}
-                {averageValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                {metric === 'kwh' && <span className="text-xs font-medium ml-1 text-amber-600">kWh</span>}
-              </span>
+           {/* Stats Display: Total & Average */}
+           <div className="flex flex-wrap justify-end items-center gap-x-6 gap-y-2 self-end mt-1">
+              {/* Average */}
+              <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Average:</span>
+                  <span className="text-lg font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 border-dashed flex items-center">
+                    {metric === 'cost' ? currencySymbol : ''}
+                    {averageValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    {metric === 'kwh' && <span className="font-medium ml-1">kWh</span>}
+                  </span>
+              </div>
+
+              {/* Total */}
+              <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Total:</span>
+                  <span className="text-lg font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 flex items-center">
+                    {metric === 'cost' ? currencySymbol : ''}
+                    {totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    {metric === 'kwh' && <span className="font-medium ml-1 text-slate-500">kWh</span>}
+                  </span>
+              </div>
            </div>
         </div>
       </div>
