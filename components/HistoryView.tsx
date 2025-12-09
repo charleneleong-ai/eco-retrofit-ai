@@ -56,7 +56,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Analysis History</h2>
-          <p className="text-slate-500 mt-1">Your saved retrofit plans and bills (stored locally).</p>
+          <p className="text-slate-500 mt-1">Your saved retrofit plans and bills</p>
         </div>
       </div>
 

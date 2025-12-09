@@ -5,7 +5,7 @@ import SavingsChart from './SavingsChart';
 import UsageTrendsChart from './UsageTrendsChart';
 import EPCBadge from './EPCBadge';
 import ReactMarkdown from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -34,6 +34,14 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
     }
   };
 
+  const getFileIcon = (type: string) => {
+    switch(type) {
+      case 'video': return <Video className="w-3 h-3" />;
+      case 'image': return <ImageIcon className="w-3 h-3" />;
+      default: return <FileText className="w-3 h-3" />;
+    }
+  }
+
   return (
     <div className="space-y-8 animate-fade-in pb-20">
       
@@ -58,8 +66,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
             onClick={onUpdateAnalysis}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition-colors shadow-md"
           >
-            <PlusCircle className="w-4 h-4" />
-            Update / Add Data
+            <PlusCircle className="w-4 h-4" /> 
           </button>
         )}
       </div>
@@ -150,33 +157,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
         </div>
       </div>
 
-      {/* Usage Trends Chart (New) */}
+      {/* Usage Trends Chart */}
       {data.usageBreakdown && (
         <UsageTrendsChart data={data.usageBreakdown} currency={data.currency} />
-      )}
-
-      {/* Data Sources Section */}
-      {data.dataSources && data.dataSources.length > 0 && (
-         <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-            <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-               <BookOpen className="w-4 h-4 text-slate-500" />
-               Data Sources & Benchmarks
-            </h4>
-            <div className="flex flex-wrap gap-2">
-               {data.dataSources.map((source, i) => (
-               <a 
-                  key={i} 
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer" 
-                  className="inline-flex items-center gap-1 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm hover:text-emerald-600 hover:border-emerald-200 transition-colors"
-               >
-                  <ExternalLink className="w-3 h-3 text-slate-400" />
-                  {source.title}
-               </a>
-               ))}
-            </div>
-         </div>
       )}
 
       {/* Recommendations Grid */}
@@ -218,6 +201,72 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({ data, onUpdateAnalysis })
             </div>
           ))}
         </div>
+      </div>
+
+      {/* References Footer */}
+      <div className="border-t border-slate-200 pt-8 mt-12">
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            {/* References / Data Sources */}
+            <div>
+               <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-slate-500" />
+                  References & Data Sources
+               </h4>
+               <ol className="list-decimal list-inside space-y-3 text-xs text-slate-600">
+                  {data.dataSources && data.dataSources.map((source, i) => (
+                    <li key={i} className="pl-1">
+                      <a 
+                         href={source.url}
+                         target="_blank"
+                         rel="noopener noreferrer" 
+                         className="hover:text-emerald-600 hover:underline inline-flex items-center gap-1 transition-colors"
+                      >
+                         {source.title}
+                         <ExternalLink className="w-3 h-3 text-slate-400" />
+                      </a>
+                    </li>
+                  ))}
+               </ol>
+            </div>
+
+            {/* Analyzed Documents */}
+            <div>
+               <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-slate-500" />
+                  Analyzed Source Documents
+               </h4>
+               <ul className="space-y-2">
+                  {data.sourceDocuments && data.sourceDocuments.length > 0 ? (
+                    data.sourceDocuments.map((doc, i) => (
+                      <li key={i}>
+                        {doc.url ? (
+                          <a 
+                            href={doc.url}
+                            className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:border-emerald-300 hover:shadow-sm transition-all group"
+                          >
+                             {getFileIcon(doc.type)}
+                             <span className="truncate flex-1 group-hover:text-emerald-700">{doc.name}</span>
+                             {doc.date && <span className="text-slate-400 text-[10px] bg-slate-50 px-1.5 py-0.5 rounded">{doc.date}</span>}
+                             <Download className="w-3 h-3 text-slate-300 group-hover:text-emerald-500" />
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-2 text-xs text-slate-600 bg-slate-50 border border-slate-100 px-3 py-2 rounded-lg opacity-75">
+                             {getFileIcon(doc.type)}
+                             <span className="truncate flex-1">{doc.name}</span>
+                             {doc.date && <span className="text-slate-400 text-[10px]">{doc.date}</span>}
+                          </div>
+                        )}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-xs text-slate-400 italic">No documents available.</li>
+                  )}
+               </ul>
+            </div>
+         </div>
+         <p className="text-center text-[10px] text-slate-400 mt-12">
+            Generated by EcoRetrofit AI using Gemini 2.5 Flash. Information provided for guidance only.
+         </p>
       </div>
     </div>
   );

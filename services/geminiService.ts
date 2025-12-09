@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResult, UserType } from '../types';
+import { AnalysisResult, UserType, SourceDoc } from '../types';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -8,7 +8,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const MODEL_NAME = 'gemini-2.5-flash';
 
 export const analyzeHomeData = async (
-  billFiles: { mimeType: string; data: string }[],
+  billFiles: { mimeType: string; data: string; name?: string }[],
   homeImages: string[],
   videoData: string | null,
   videoMimeType: string | null,
@@ -212,7 +212,39 @@ export const analyzeHomeData = async (
     });
 
     if (response.text) {
-      return JSON.parse(response.text) as AnalysisResult;
+      const result = JSON.parse(response.text) as AnalysisResult;
+      
+      // Capture source documents using new type
+      const currentSources: SourceDoc[] = [];
+      
+      billFiles.forEach(f => {
+        currentSources.push({ 
+          name: f.name || 'Uploaded Bill', 
+          type: 'pdf' 
+        });
+      });
+      
+      if (videoData) {
+        currentSources.push({ name: 'Walkthrough Video', type: 'video' });
+      }
+      
+      if (homeImages.length > 0) {
+        homeImages.forEach((_, i) => {
+           currentSources.push({ name: `Home Photo ${i+1}`, type: 'image' });
+        });
+      }
+
+      // Merge with previous analysis sources if updating
+      const previousSources = previousAnalysis?.sourceDocuments || [];
+      
+      // Merge and remove duplicates based on name
+      const allSources = [...previousSources, ...currentSources];
+      const uniqueSourcesMap = new Map();
+      allSources.forEach(src => uniqueSourcesMap.set(src.name, src));
+      
+      result.sourceDocuments = Array.from(uniqueSourcesMap.values());
+
+      return result;
     } else {
       throw new Error("No data returned from Gemini.");
     }
@@ -241,7 +273,6 @@ export const chatWithCopilot = async (
     Recommendations: ${JSON.stringify(contextData.recommendations)}
   `;
 
-  // Map history to the format expected by the SDK
   const historyContent = history.map(h => ({
     role: h.role,
     parts: [{ text: h.text }]

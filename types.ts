@@ -39,6 +39,13 @@ export interface EPCRating {
   score: number; // 1-100
 }
 
+export interface SourceDoc {
+  name: string;
+  type: 'pdf' | 'image' | 'video';
+  date?: string;
+  url?: string;
+}
+
 export interface AnalysisResult {
   customerName?: string;
   address?: string;
@@ -52,6 +59,7 @@ export interface AnalysisResult {
   dataSources: DataSource[];
   usageBreakdown?: UsageBreakdown;
   epc?: EPCRating;
+  sourceDocuments?: SourceDoc[];
 }
 
 export interface FileData {

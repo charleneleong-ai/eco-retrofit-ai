@@ -10,7 +10,7 @@ import Button from './components/Button';
 import AnalysisDashboard from './components/AnalysisDashboard';
 import ChatInterface from './components/ChatInterface';
 import HistoryView from './components/HistoryView';
-import { ArrowRight, Leaf, Home, Building, History as HistoryIcon, Plus, PlayCircle, FileText } from 'lucide-react';
+import { ArrowRight, Leaf, Home, Building, History as HistoryIcon, Plus, PlayCircle, FileText, ExternalLink } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>('upload');
@@ -123,12 +123,18 @@ export default function App() {
     // Simulate slight network delay for realism
     setTimeout(async () => {
       setAnalysisResult(MOCK_ANALYSIS_RESULT);
+      // Demo data is specifically for a renter scenario
+      setUserType('renter');
       
+      // Generate mock file entries based on the result so history count matches
+      const mockFiles = MOCK_ANALYSIS_RESULT.sourceDocuments?.map(doc => ({
+        name: doc.name,
+        type: doc.type === 'pdf' ? 'application/pdf' : doc.type === 'image' ? 'image/jpeg' : 'video/mp4',
+        data: '' // No actual data for mock files to save space
+      })) || [];
+
       // Save demo to history so it persists
-      await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, [
-        { name: 'ovo-bill-dec24.pdf', type: 'application/pdf', data: '' },
-        { name: 'ovo-bill-jan25.pdf', type: 'application/pdf', data: '' }
-      ]);
+      await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, mockFiles);
       await loadHistory();
       
       setState('dashboard');
@@ -245,25 +251,57 @@ export default function App() {
           <div className="max-w-3xl mx-auto animate-fade-in-up">
             
             {previousAnalysis ? (
-               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 mb-8 flex items-start gap-4 shadow-sm">
-                  <div className="bg-emerald-100 p-2 rounded-full">
-                    <Plus className="w-6 h-6 text-emerald-600" />
+               <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 mb-8 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-emerald-100 p-2 rounded-full">
+                      <Plus className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-emerald-800 text-lg">Update Existing Analysis</h3>
+                      <p className="text-emerald-700/80 mt-1 text-sm">
+                        You are adding data to the plan for <strong>{previousAnalysis.address || 'your property'}</strong>. 
+                        Upload new bills or photos to refine the recommendations.
+                      </p>
+                      <button onClick={handleNewAnalysis} className="text-xs font-bold text-emerald-600 mt-2 underline hover:text-emerald-700">Start Fresh Instead</button>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-emerald-800 text-lg">Update Existing Analysis</h3>
-                    <p className="text-emerald-700/80 mt-1">
-                      You are adding data to the plan for <strong>{previousAnalysis.address || 'your property'}</strong>. 
-                      Upload new bills or photos to refine the recommendations.
-                    </p>
-                    <button onClick={handleNewAnalysis} className="text-xs font-bold text-emerald-600 mt-2 underline">Start Fresh Instead</button>
-                  </div>
+
+                  {/* Show loaded sources */}
+                  {previousAnalysis.sourceDocuments && previousAnalysis.sourceDocuments.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-emerald-200/60">
+                      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> Sources currently in this analysis:
+                      </p>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {previousAnalysis.sourceDocuments.map((doc, i) => (
+                          <li key={i}>
+                            {doc.url ? (
+                                <a 
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 text-xs font-medium text-emerald-800 bg-white/60 px-3 py-1.5 rounded-md border border-emerald-100/50 hover:bg-white hover:border-emerald-300 hover:shadow-sm transition-all w-full group cursor-pointer"
+                                >
+                                  <span className="truncate flex-1 group-hover:text-emerald-600">{doc.name}</span>
+                                  <ExternalLink className="w-3 h-3 text-emerald-400 group-hover:text-emerald-600" />
+                                </a>
+                            ) : (
+                                <div className="flex items-center gap-2 text-xs font-medium text-emerald-800 bg-white/60 px-3 py-1.5 rounded-md border border-emerald-100/50 w-full">
+                                  <span className="truncate flex-1">{doc.name}</span>
+                                </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                </div>
             ) : (
               <div className="text-center mb-10">
                 <h2 className="text-4xl font-bold text-slate-900 mb-4">Turn Your Bills into Savings</h2>
                 <p className="text-lg text-slate-600">
                   Upload your energy bills, photos of your home, and a quick walkthrough video. 
-                  Gemini will build a personalized retrofit plan for you.
+                  We will build a personalized retrofit plan for you and your home.
                 </p>
               </div>
             )}
