@@ -1,5 +1,5 @@
 
-import { UsageMetric, UsageBreakdown } from './types';
+import { UsageMetric, UsageBreakdown, FuelMetric } from './types';
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -36,12 +36,60 @@ export const parseSavingsValue = (savingsStr: string): number => {
   }
 };
 
+const distributeMetric = (base: FuelMetric, daysInMonth: number, variance: number): FuelMetric => {
+    return {
+        cost: parseFloat(((base.cost / daysInMonth) * variance).toFixed(2)),
+        kwh: Math.round(((base.kwh / daysInMonth) * variance) * 10) / 10
+    };
+};
+
+// Heuristic to estimate split if missing
+// Assumes winter months have high gas, summer months low gas
+const estimateSplit = (totalMetric: UsageMetric): { elec: FuelMetric, gas: FuelMetric } => {
+    // If already exists, return it
+    if (totalMetric.electricity && totalMetric.gas) {
+        return { elec: totalMetric.electricity, gas: totalMetric.gas };
+    }
+
+    const monthStr = totalMetric.label.split(' ')[0];
+    const winterMonths = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar'];
+    const isWinter = winterMonths.includes(monthStr);
+
+    // Heuristic Ratios
+    // Winter: 70% Gas (Heating), 30% Elec
+    // Summer: 20% Gas (Hot Water), 80% Elec
+    const gasRatio = isWinter ? 0.65 : 0.20; 
+    
+    // Elec is usually more expensive per kwh, so cost ratio might be different from kwh ratio
+    // But for simplicity of visualization derived from total, we stick to a simple split
+    
+    const elecKwh = totalMetric.kwh * (1 - gasRatio);
+    const gasKwh = totalMetric.kwh * gasRatio;
+    
+    // Assume Elec is 3x price of gas (approx UK: 24p vs 7p)
+    // TotalCost = (ElecKwh * 3X) + (GasKwh * 1X)
+    // We solve for X (Base gas price unit) to distribute cost proportionally to realistic pricing
+    // TotalCost = X * (3*ElecKwh + GasKwh)
+    // X = TotalCost / (3*ElecKwh + GasKwh)
+    
+    const priceUnit = totalMetric.cost / ((3 * elecKwh) + gasKwh);
+    const elecCost = 3 * elecKwh * priceUnit;
+    const gasCost = gasKwh * priceUnit;
+
+    return {
+        elec: { kwh: elecKwh, cost: elecCost },
+        gas: { kwh: gasKwh, cost: gasCost }
+    };
+};
+
 export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreakdown => {
   const daily: UsageMetric[] = [];
   const weekly: UsageMetric[] = [];
   
   let currentWeekCost = 0;
   let currentWeekKwh = 0;
+  let currentWeekElec = { cost: 0, kwh: 0 };
+  let currentWeekGas = { cost: 0, kwh: 0 };
   let dayCount = 0;
   let weekStartLabel = '';
 
@@ -49,6 +97,13 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
     // Sanitize input values to ensure they are numbers
     const safeCost = typeof m.cost === 'number' && !isNaN(m.cost) ? m.cost : 0;
     const safeKwh = typeof m.kwh === 'number' && !isNaN(m.kwh) ? m.kwh : 0;
+
+    // Ensure we have split data (either from API or heuristic)
+    const split = estimateSplit({ ...m, cost: safeCost, kwh: safeKwh });
+    
+    // Update the monthly item with the split if it was missing
+    if (!m.electricity) m.electricity = split.elec;
+    if (!m.gas) m.gas = split.gas;
 
     const daysInMonth = 30; // Approx constant for visual consistency
     const dailyBaseCost = safeCost / daysInMonth;
@@ -66,6 +121,9 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
       const variance = 0.7 + Math.random() * 0.6;
       const cost = dailyBaseCost * variance;
       const kwh = dailyBaseKwh * variance;
+      
+      const dailyElec = distributeMetric(split.elec, daysInMonth, variance);
+      const dailyGas = distributeMetric(split.gas, daysInMonth, variance);
 
       // Create daily label like "1 Jan 25"
       const dailyLabel = `${i} ${monthStr}${shortYear ? ` '${shortYear}` : ''}`;
@@ -73,7 +131,9 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
       daily.push({
         label: dailyLabel,
         cost: parseFloat(cost.toFixed(2)),
-        kwh: Math.round(kwh * 10) / 10
+        kwh: Math.round(kwh * 10) / 10,
+        electricity: dailyElec,
+        gas: dailyGas
       });
 
       // Track week start/end
@@ -85,34 +145,41 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
       // Accumulate weekly
       currentWeekCost += cost;
       currentWeekKwh += kwh;
+      currentWeekElec.cost += dailyElec.cost;
+      currentWeekElec.kwh += dailyElec.kwh;
+      currentWeekGas.cost += dailyGas.cost;
+      currentWeekGas.kwh += dailyGas.kwh;
 
       if (dayCount % 7 === 0) {
         weekly.push({
           label: `W${weekly.length + 1}${shortYear ? `'${shortYear}` : ''}`,
           cost: parseFloat(currentWeekCost.toFixed(2)),
           kwh: Math.round(currentWeekKwh),
+          electricity: { ...currentWeekElec },
+          gas: { ...currentWeekGas },
           dateRange: `${weekStartLabel} - ${dailyLabel}`
         });
         currentWeekCost = 0;
         currentWeekKwh = 0;
+        currentWeekElec = { cost: 0, kwh: 0 };
+        currentWeekGas = { cost: 0, kwh: 0 };
       }
     }
   });
   
   // Push remaining partial week if any substantial data exists
   if (dayCount % 7 !== 0 && currentWeekCost > 1) {
-     // Grab year from the last month processed
      const lastMonth = monthlyData[monthlyData.length - 1];
      const parts = lastMonth.label.split(' ');
      const year = parts.length > 1 ? (parts[1].length === 4 ? parts[1].slice(2) : parts[1]) : '';
-     
-     // Use the very last generated daily label as the end of the partial week
      const lastDailyLabel = daily.length > 0 ? daily[daily.length - 1].label : '';
 
      weekly.push({
         label: `W${weekly.length + 1}${year ? `'${year}` : ''}`,
         cost: parseFloat(currentWeekCost.toFixed(2)),
         kwh: Math.round(currentWeekKwh),
+        electricity: { ...currentWeekElec },
+        gas: { ...currentWeekGas },
         dateRange: `${weekStartLabel} - ${lastDailyLabel}`
       });
   }

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush, ReferenceLine } from 'recharts';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Zap, Flame, PieChart } from 'lucide-react';
 import { UsageBreakdown, UsageMetric } from '../types';
 
 interface UsageTrendsChartProps {
@@ -244,6 +244,7 @@ const CustomDatePicker: React.FC<CustomDatePickerProps> = ({ isOpen, onClose, cu
 const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) => {
   const [activeTab, setActiveTab] = useState<'Day' | 'Week' | 'Month' | 'Year'>('Year');
   const [metric, setMetric] = useState<'cost' | 'kwh'>('cost');
+  const [fuelType, setFuelType] = useState<'all' | 'elec' | 'gas'>('all'); // New state for fuel selection
   const [brushRange, setBrushRange] = useState<{ startIndex: number; endIndex: number } | null>(null);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -313,10 +314,18 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
     };
   }, [isCalendarOpen]);
 
+  // Helper to extract specific fuel value from metric
+  const getMetricValue = (item: UsageMetric, type: 'cost' | 'kwh', fuel: 'all' | 'elec' | 'gas') => {
+      if (fuel === 'all') return item[type];
+      if (fuel === 'elec') return item.electricity ? item.electricity[type] : 0;
+      if (fuel === 'gas') return item.gas ? item.gas[type] : 0;
+      return 0;
+  };
+
   const generateHourlyData = (dayMetric: UsageMetric) => {
      const hours = [];
-     const totalKwh = dayMetric.kwh || 0;
-     const totalCost = dayMetric.cost || 0;
+     const totalKwh = getMetricValue(dayMetric, 'kwh', fuelType);
+     const totalCost = getMetricValue(dayMetric, 'cost', fuelType);
      
      // Simple dual-peak profile
      const profile = [
@@ -330,43 +339,70 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
      
      for(let i=0; i<24; i++) {
         const ratio = profile[i] / sumProfile;
-        hours.push({
+        
+        // Construct partial object just enough for charting
+        const hrItem: any = {
            label: `${i.toString().padStart(2, '0')}:00`,
            kwh: totalKwh * ratio,
            cost: totalCost * ratio,
-        });
+        };
+
+        // If we are in 'all' view, we might want split data for tooltips, but 'all' view already renders Total
+        // If we are in split view, the chart renders 'kwh' or 'cost' keys directly.
+        // We map specific fuel data to the main keys for hourly generation to simplify
+        
+        hours.push(hrItem);
      }
      return hours;
   };
 
   const chartData = useMemo(() => {
+    let rawData: UsageMetric[] = [];
+
     switch (activeTab) {
       case 'Year': 
-        return data.monthly || [];
+        rawData = data.monthly || [];
+        break;
       case 'Month': {
          const targetMonth = data.monthly[selectedMonthIndex];
-         if (!targetMonth) return [];
+         if (!targetMonth) { rawData = []; break; }
          
          const parts = targetMonth.label.split(' ');
-         if (parts.length < 2) return [];
+         if (parts.length < 2) { rawData = []; break; }
          const m = parts[0]; 
          const y = parts[1]; 
 
-         return data.daily.filter(d => d.label.includes(m) && d.label.includes(y));
+         rawData = data.daily.filter(d => d.label.includes(m) && d.label.includes(y));
+         break;
       }
       case 'Week': {
-         if (weeksData.length === 0) return [];
+         if (weeksData.length === 0) { rawData = []; break; }
          const idx = Math.min(Math.max(0, selectedWeekIndex), weeksData.length - 1);
-         return weeksData[idx];
+         rawData = weeksData[idx];
+         break;
       }
       case 'Day': {
          const day = data.daily[selectedDayIndex];
+         // Special handling for Day view: generateHourlyData already filters by fuel type internally
+         // and returns simple objects with {cost, kwh} keys populated with the correct values.
          return day ? generateHourlyData(day) : [];
       }
       default: 
-        return data.monthly || [];
+        rawData = data.monthly || [];
     }
-  }, [activeTab, data, selectedMonthIndex, selectedWeekIndex, selectedDayIndex, weeksData]);
+    
+    // For non-hourly views, we map the data to include a top-level key for the chart to read easily
+    // We'll create a 'value' property that holds the data for current selection
+    // Chart will use `dataKey="value"`
+    return rawData.map(d => ({
+        ...d,
+        value: getMetricValue(d, metric, fuelType),
+        // Pass specific values for custom tooltip usage
+        tooltipElec: getMetricValue(d, metric, 'elec'),
+        tooltipGas: getMetricValue(d, metric, 'gas')
+    }));
+
+  }, [activeTab, data, selectedMonthIndex, selectedWeekIndex, selectedDayIndex, weeksData, metric, fuelType]);
 
   const visibleData = useMemo(() => {
     if (!brushRange || !chartData.length) {
@@ -393,6 +429,31 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
     }
     if (activeTab === 'Week') {
        if (chartData.length > 0) {
+           // Compact Week Range Formatting
+           const startParts = chartData[0].label.split(' ');
+           const endParts = chartData[chartData.length - 1].label.split(' ');
+           
+           if (startParts.length >= 3 && endParts.length >= 3) {
+               const sDay = startParts[0];
+               const sMonth = startParts[1]; 
+               const sYear = startParts[2].replace("'", "");
+               
+               const eDay = endParts[0];
+               const eMonth = endParts[1];
+               const eYear = endParts[2].replace("'", "");
+               
+               const fullSYear = sYear.length === 2 ? `20${sYear}` : sYear;
+               const fullEYear = eYear.length === 2 ? `20${eYear}` : eYear;
+
+               if (fullSYear === fullEYear) {
+                   if (sMonth === eMonth) {
+                       return `${sDay} - ${eDay} ${sMonth} ${fullSYear}`;
+                   }
+                   return `${sDay} ${sMonth} - ${eDay} ${eMonth} ${fullSYear}`;
+               }
+               return `${sDay} ${sMonth} ${sYear} - ${eDay} ${eMonth} ${eYear}`;
+           }
+
            const start = formatLabel(chartData[0].label);
            const end = formatLabel(chartData[chartData.length - 1].label);
            return `${start} - ${end}`;
@@ -465,14 +526,15 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
 
   const totalValue = useMemo(() => {
     if (!visibleData.length) return 0;
-    return visibleData.reduce((acc, item) => acc + (item[metric] || 0), 0);
-  }, [visibleData, metric]);
+    // We use the already computed 'value' field which respects fuelType
+    return visibleData.reduce((acc, item: any) => acc + (item.value || (activeTab === 'Day' ? (metric === 'cost' ? item.cost : item.kwh) : 0)), 0);
+  }, [visibleData, metric, activeTab]);
 
   const averageValue = useMemo(() => {
     if (!visibleData.length) return 0;
-    const total = visibleData.reduce((acc, item) => acc + (item[metric] || 0), 0);
+    const total = visibleData.reduce((acc, item: any) => acc + (item.value || (activeTab === 'Day' ? (metric === 'cost' ? item.cost : item.kwh) : 0)), 0);
     return total / visibleData.length;
-  }, [visibleData, metric]);
+  }, [visibleData, metric, activeTab]);
 
   const formatXAxis = (label: string) => {
     if (activeTab === 'Year') return label.charAt(0);
@@ -546,11 +608,11 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
                         if(showNav) setIsCalendarOpen(!isCalendarOpen);
                     }}
                  >
-                    <span className={`text-xs text-emerald-600 font-bold text-center select-none ${activeTab === 'Week' ? 'min-w-[140px]' : 'min-w-[60px]'}`}>
+                    <span className={`text-xs text-emerald-600 font-bold text-center select-none whitespace-nowrap px-1 ${activeTab === 'Week' ? 'min-w-[120px]' : 'min-w-[60px]'}`}>
                         {subtitle}
                     </span>
                     {showNav && (
-                       <CalendarIcon className="w-3 h-3 text-emerald-400 ml-1.5" />
+                       <CalendarIcon className="w-3 h-3 text-emerald-400 ml-1.5 flex-shrink-0" />
                     )}
 
                     {/* Custom Popup */}
@@ -574,7 +636,29 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
 
         {/* Right Header: Controls */}
         <div className="flex flex-col items-end gap-3 w-full md:w-auto">
-           <div className="flex items-center gap-3 self-end">
+           <div className="flex flex-wrap items-center gap-2 sm:gap-3 self-end justify-end">
+              {/* Fuel Type Toggle */}
+              <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-200">
+                  <button 
+                    onClick={() => setFuelType('all')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1 ${fuelType === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    <PieChart className="w-3 h-3" /> Total
+                  </button>
+                  <button 
+                    onClick={() => setFuelType('elec')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1 ${fuelType === 'elec' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    <Zap className="w-3 h-3" /> Elec
+                  </button>
+                  <button 
+                    onClick={() => setFuelType('gas')}
+                    className={`px-3 py-1 text-xs font-bold rounded-md transition-all flex items-center gap-1 ${fuelType === 'gas' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    <Flame className="w-3 h-3" /> Gas
+                  </button>
+              </div>
+
               {/* Metric Toggle */}
               <div className="hidden sm:flex bg-slate-50 p-1 rounded-lg border border-slate-200">
                   <button 
@@ -592,7 +676,7 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
               </div>
 
               {/* Tabs */}
-              <div className="flex bg-slate-100 p-1 rounded-lg">
+              <div className="flex bg-slate-100 p-1 rounded-lg overflow-x-auto">
                 {['Day', 'Week', 'Month', 'Year'].map((tab) => (
                     <button 
                       key={tab}
@@ -600,7 +684,7 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
                           setActiveTab(tab as any);
                           setIsCalendarOpen(false); // Close calendar on tab switch
                       }}
-                      className={`px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+                      className={`px-3 sm:px-4 py-1.5 rounded-md text-xs font-bold transition-all whitespace-nowrap ${
                         activeTab === tab 
                           ? 'bg-white text-slate-800 shadow-sm' 
                           : 'text-slate-500 hover:text-slate-700'
@@ -640,7 +724,7 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart 
-            key={activeTab + selectedMonthIndex + selectedWeekIndex + selectedDayIndex} 
+            key={activeTab + selectedMonthIndex + selectedWeekIndex + selectedDayIndex + fuelType} 
             data={chartData} 
             margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
           >
@@ -664,26 +748,54 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
                content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
                     const dataItem = payload[0].payload;
+                    // For Day view, we generate simple hourly items, so we check if tooltip properties exist
+                    // Otherwise we fallback to the main value
+                    
+                    const elecVal = dataItem.tooltipElec !== undefined ? dataItem.tooltipElec : 0;
+                    const gasVal = dataItem.tooltipGas !== undefined ? dataItem.tooltipGas : 0;
+                    const hasSplitData = activeTab !== 'Day' && fuelType === 'all';
+
                     return (
-                      <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-xl min-w-[120px] text-center z-50">
+                      <div className="bg-white p-3 border border-slate-100 shadow-xl rounded-xl min-w-[140px] text-center z-50">
                         <p className="text-xs text-slate-400 font-semibold mb-2 uppercase tracking-wider">{label}</p>
                         
                         {/* Primary Value (Large) */}
-                        <div className="mb-1">
+                        <div className="mb-2">
                           <p className="text-xl font-bold text-slate-800 leading-none">
                              {metric === 'cost' ? currencySymbol : ''}
                              {Number(payload[0].value).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                              {metric === 'kwh' && <span className="text-sm font-medium text-slate-500 ml-1">kWh</span>}
                           </p>
+                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                             {fuelType === 'all' ? 'Total Usage' : fuelType === 'elec' ? 'Electricity' : 'Gas'}
+                          </p>
                         </div>
                         
-                        {/* Secondary Value (Small) - Shows the other metric */}
-                        <div className="text-xs text-slate-500 font-medium mt-1 pt-1 border-t border-slate-100">
-                           {metric === 'cost' 
-                             ? <span>{dataItem.kwh?.toLocaleString(undefined, {maximumFractionDigits: 1})} kWh</span>
-                             : <span>{currencySymbol}{dataItem.cost?.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                           }
-                        </div>
+                        {/* Split Breakdown (Only shown in Total view if not Day view) */}
+                        {hasSplitData && (
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-xs">
+                                <div>
+                                    <div className="flex items-center justify-center gap-1 text-emerald-600 font-bold">
+                                        <Zap className="w-3 h-3" />
+                                        <span>
+                                            {metric === 'cost' ? currencySymbol : ''}
+                                            {elecVal.toLocaleString(undefined, {maximumFractionDigits: 1})}
+                                        </span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-400">Elec</span>
+                                </div>
+                                <div>
+                                    <div className="flex items-center justify-center gap-1 text-orange-500 font-bold">
+                                        <Flame className="w-3 h-3" />
+                                        <span>
+                                            {metric === 'cost' ? currencySymbol : ''}
+                                            {gasVal.toLocaleString(undefined, {maximumFractionDigits: 1})}
+                                        </span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-400">Gas</span>
+                                </div>
+                            </div>
+                        )}
                       </div>
                     );
                   }
@@ -695,8 +807,8 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
             <ReferenceLine y={averageValue} stroke="#f59e0b" strokeDasharray="5 5" />
 
             <Bar 
-              dataKey={metric} 
-              fill="#10b981" 
+              dataKey={activeTab === 'Day' ? (metric === 'cost' ? 'cost' : 'kwh') : 'value'} 
+              fill={fuelType === 'gas' ? '#f97316' : fuelType === 'elec' ? '#10b981' : '#10b981'} 
               radius={[4, 4, 4, 4]} 
               barSize={activeTab === 'Year' ? 40 : undefined} 
             />
@@ -705,8 +817,8 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
             <Brush 
                 dataKey="label" 
                 height={20} 
-                stroke="#10b981"
-                fill="#d1fae5"
+                stroke={fuelType === 'gas' ? '#fdba74' : '#6ee7b7'}
+                fill={fuelType === 'gas' ? '#fff7ed' : '#ecfdf5'}
                 tickFormatter={() => ''}
                 travellerWidth={10}
                 className="opacity-50"

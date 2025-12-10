@@ -228,6 +228,7 @@ export const analyzeHomeData = async (
        - GENERATE A FULL 12-MONTH TIMELINE of monthly totals ('monthlyUsage' array) representing the last year (or a typical year) based on the data provided. 
        - IMPORTANT: The 'monthlyUsage' array MUST contain exactly 12 items. If you have fewer bills, infer missing months based on seasonality. If you have more bills, use the most recent 12 months.
        - IMPORTANT: The 'label' for each month MUST be in the format "MMM YY" (e.g., "Jan 24", "Feb 24").
+       - CRITICAL: Separate 'electricity' and 'gas' usage if available on the bill.
     3. EPC (Energy Performance Certificate):
        - PRIMARY GOAL: Look for an "Energy Rating" or "EPC" on the bill documents or try to infer the REAL rating from the specific address if known/visible.
        - FALLBACK: If no official rating is found, ESTIMATE the EPC rating (A-G) based on visual evidence (insulation thickness, glazing type, boiler age).
@@ -265,7 +266,13 @@ export const analyzeHomeData = async (
       "projectedMonthlyAvg": number,
       "currency": "USD" or "GBP" or "EUR",
       "monthlyUsage": [
-        { "label": "Jan 24", "kwh": 300, "cost": 80 }, ...
+        { 
+            "label": "Jan 24", 
+            "kwh": 300, 
+            "cost": 80, 
+            "electricity": { "kwh": 100, "cost": 30 },
+            "gas": { "kwh": 200, "cost": 50 } 
+        }, ...
       ],
       "epc": {
         "current": "D",
@@ -368,7 +375,22 @@ export const analyzeHomeData = async (
             currency: { type: Type.STRING },
             monthlyUsage: { 
               type: Type.ARRAY, 
-              items: { type: Type.OBJECT, properties: { label: {type: Type.STRING}, kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} } }
+              items: { 
+                  type: Type.OBJECT, 
+                  properties: { 
+                      label: {type: Type.STRING}, 
+                      kwh: {type: Type.NUMBER}, 
+                      cost: {type: Type.NUMBER},
+                      electricity: {
+                          type: Type.OBJECT,
+                          properties: { kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} }
+                      },
+                      gas: {
+                          type: Type.OBJECT,
+                          properties: { kwh: {type: Type.NUMBER}, cost: {type: Type.NUMBER} }
+                      }
+                  } 
+              }
             },
             epc: {
               type: Type.OBJECT,

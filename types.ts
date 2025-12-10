@@ -40,11 +40,18 @@ export interface DataSource {
   url: string;
 }
 
+export interface FuelMetric {
+  cost: number;
+  kwh: number;
+}
+
 export interface UsageMetric {
   label: string;
   kwh: number;
   cost: number;
   dateRange?: string;
+  electricity?: FuelMetric;
+  gas?: FuelMetric;
 }
 
 export interface UsageBreakdown {

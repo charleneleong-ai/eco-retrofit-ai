@@ -4,26 +4,41 @@ import { generateDerivedUsageData } from '../utils';
 
 // Helper to generate granular data from monthly totals
 const generateMockUsageData = () => {
+  // Define split based on the logic: Gas high in winter, Elec consistent (~180-230 kwh)
+  // Costs approx: Elec 24p/kwh, Gas 7p/kwh + standing charges
+  
   const monthlyTotals = [
-    { month: 'Dec 24', cost: 159.75, kwh: 168 + 1395 }, // Dec 24
-    { month: 'Jan 25', cost: 183.96, kwh: 235 + 1510 }, // Jan 25
-    { month: 'Feb 25', cost: 133.19, kwh: 211 + 851 },  // Feb 25
-    { month: 'Mar 25', cost: 93.18, kwh: 186 + 344 },   // Mar 25
-    { month: 'Apr 25', cost: 82.60, kwh: 160 + 266 },   // Apr 25
-    { month: 'May 25', cost: 97.41, kwh: 216 + 261 },   // May 25
-    { month: 'Jun 25', cost: 84.46, kwh: 189 + 180 },   // Jun 25
-    { month: 'Jul 25', cost: 89.43, kwh: 209 + 171 },   // Jul 25
-    { month: 'Aug 25', cost: 59.74, kwh: 123 + 69 },    // Aug 25
-    { month: 'Sep 25', cost: 97.27, kwh: 203 + 325 },   // Sep 25
-    { month: 'Oct 25', cost: 98.95, kwh: 213 + 296 },   // Oct 25
-    { month: 'Nov 25', cost: 145.00, kwh: 1400 },       // Nov 25 (Projected based on trend)
+    { month: 'Dec 24', elecKwh: 168, gasKwh: 1395 }, 
+    { month: 'Jan 25', elecKwh: 235, gasKwh: 1510 }, 
+    { month: 'Feb 25', elecKwh: 211, gasKwh: 851 },  
+    { month: 'Mar 25', elecKwh: 186, gasKwh: 344 },  
+    { month: 'Apr 25', elecKwh: 160, gasKwh: 266 },  
+    { month: 'May 25', elecKwh: 216, gasKwh: 261 },  
+    { month: 'Jun 25', elecKwh: 189, gasKwh: 180 },  
+    { month: 'Jul 25', elecKwh: 209, gasKwh: 171 },  
+    { month: 'Aug 25', elecKwh: 123, gasKwh: 69 },   
+    { month: 'Sep 25', elecKwh: 203, gasKwh: 325 },  
+    { month: 'Oct 25', elecKwh: 213, gasKwh: 296 },  
+    { month: 'Nov 25', elecKwh: 220, gasKwh: 1180 }, // Projected Winter start
   ];
 
-  return generateDerivedUsageData(monthlyTotals.map(m => ({ 
-      label: m.month, 
-      cost: m.cost, 
-      kwh: m.kwh 
-  })));
+  // Assumed avg unit rates for simplified cost calc
+  const ELEC_RATE = 0.28; 
+  const GAS_RATE = 0.07;
+  const STANDING_CHARGE = 20; // Approx monthly standing charge total
+
+  return generateDerivedUsageData(monthlyTotals.map(m => {
+      const elecCost = m.elecKwh * ELEC_RATE + (STANDING_CHARGE * 0.5);
+      const gasCost = m.gasKwh * GAS_RATE + (STANDING_CHARGE * 0.5);
+      
+      return { 
+          label: m.month, 
+          cost: elecCost + gasCost, 
+          kwh: m.elecKwh + m.gasKwh,
+          electricity: { kwh: m.elecKwh, cost: elecCost },
+          gas: { kwh: m.gasKwh, cost: gasCost }
+      };
+  }));
 };
 
 const usageData = generateMockUsageData();
