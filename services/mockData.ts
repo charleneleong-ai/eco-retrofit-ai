@@ -45,7 +45,8 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
   epc: {
     current: "D",
     potential: "C",
-    score: 64
+    score: 64,
+    isEstimate: true
   },
   usageBreakdown: {
     daily: usageData.daily,

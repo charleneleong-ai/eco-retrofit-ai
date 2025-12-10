@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResult, UserType, SourceDoc } from '../types';
+import { AnalysisResult, UserType, SourceDoc, EPCRating } from '../types';
 import { generateDerivedUsageData } from '../utils';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -46,6 +46,81 @@ CATEGORY: GENERAL & BENCHMARKS
 - London Building Stock Model: "https://data.london.gov.uk/dataset/london-building-stock-model"
 `;
 
+export const extractEPCData = async (
+  file: { mimeType: string; data: string; name?: string }
+): Promise<EPCRating> => {
+  const parts: any[] = [{
+    inlineData: {
+      mimeType: file.mimeType,
+      data: file.data
+    }
+  }];
+
+  const prompt = `
+    Analyze this Energy Performance Certificate (EPC).
+    Extract the following details:
+    1. Current and Potential Energy Rating (A-G).
+    2. Current Energy Score (1-100).
+    3. Certificate Validity Date (Valid until).
+    4. Certificate Number.
+    5. Property Type.
+    6. Total Floor Area.
+    7. The breakdown of property's energy performance features (Wall, Window, Main heating, etc.) with their ratings.
+    8. 'upgradePotentialExplanation': 
+       - If Current Rating equals Potential Rating: Analyze the 'breakdown' to explain WHY. Is it because the property is already efficient (features rated Good/Very Good)? Or are there constraints (e.g. Electric heating penalties, Listed building status, physical inability to insulate)? Provide a concise explanation.
+       - If they differ: Briefly summarize the key upgrades needed to reach the potential.
+
+    Output PURE JSON matching the schema.
+  `;
+  
+  parts.push({ text: prompt });
+
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            current: { type: Type.STRING },
+            potential: { type: Type.STRING },
+            score: { type: Type.NUMBER },
+            validUntil: { type: Type.STRING },
+            certificateNumber: { type: Type.STRING },
+            propertyType: { type: Type.STRING },
+            totalFloorArea: { type: Type.STRING },
+            upgradePotentialExplanation: { type: Type.STRING },
+            breakdown: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        description: { type: Type.STRING },
+                        rating: { type: Type.STRING }
+                    }
+                }
+            }
+          },
+          required: ['current', 'potential', 'score']
+        }
+      }
+    });
+
+    if (response.text) {
+        const data = JSON.parse(response.text);
+        // Explicitly set isEstimate to false since this is an extraction from an official doc
+        return { ...data, isEstimate: false };
+    }
+    throw new Error("Failed to extract EPC data");
+  } catch (error) {
+    console.error("EPC Extraction Error:", error);
+    throw error;
+  }
+};
+
 export const analyzeHomeData = async (
   billFiles: { mimeType: string; data: string; name?: string }[],
   homeImages: string[],
@@ -61,7 +136,8 @@ export const analyzeHomeData = async (
     ? `IMPORTANT: This is an UPDATE to an existing analysis. 
        Previous Summary: ${previousAnalysis.summary}
        Previous Address: ${previousAnalysis.address || 'Unknown'}
-       Merge the new files/info with the previous findings. If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.`
+       Merge the new files/info with the previous findings. If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.
+       IF THE NEW FILE IS AN OFFICIAL EPC CERTIFICATE, EXTRACT THE EXACT RATINGS AND SET 'isEstimate' TO FALSE. ALSO EXTRACT THE FULL BREAKDOWN TABLE AND METADATA.`
     : '';
 
   const prompt = `
@@ -84,6 +160,8 @@ export const analyzeHomeData = async (
        - PRIMARY GOAL: Look for an "Energy Rating" or "EPC" on the bill documents or try to infer the REAL rating from the specific address if known/visible.
        - FALLBACK: If no official rating is found, ESTIMATE the EPC rating (A-G) based on visual evidence (insulation thickness, glazing type, boiler age).
        - Provide a numeric score (1-100) if possible.
+       - Set 'isEstimate' to TRUE if you inferred it, or FALSE if you found an official document or valid record.
+       - IF AN OFFICIAL DOCUMENT IS FOUND: Extract 'validUntil', 'certificateNumber', 'propertyType', 'totalFloorArea', and the detailed 'breakdown' of features (Wall, Window, Main heating, etc.).
     4. Identify Inefficiencies: Analyze photos/video for windows, insulation gaps, appliances.
     5. Generate Plan: Create a retrofit/improvement plan tailored STRICTLY to the User Profile.
     6. Benchmarking: Compare against typical homes in the region (infer location from currency/text).
@@ -111,7 +189,17 @@ export const analyzeHomeData = async (
       "epc": {
         "current": "D",
         "potential": "B",
-        "score": 55
+        "score": 55,
+        "isEstimate": boolean,
+        "validUntil": "22 July 2034",
+        "certificateNumber": "0000-0000-...",
+        "propertyType": "Semi-detached house",
+        "totalFloorArea": "85 square metres",
+        "upgradePotentialExplanation": "Brief explanation...",
+        "breakdown": [
+           { "name": "Wall", "description": "Cavity wall, filled", "rating": "Good" },
+           { "name": "Window", "description": "Single glazed", "rating": "Very Poor" }
+        ]
       },
       "comparison": {
         "similarHomeAvgCost": number,
@@ -192,9 +280,26 @@ export const analyzeHomeData = async (
               properties: {
                 current: { type: Type.STRING },
                 potential: { type: Type.STRING },
-                score: { type: Type.NUMBER }
+                score: { type: Type.NUMBER },
+                isEstimate: { type: Type.BOOLEAN },
+                validUntil: { type: Type.STRING },
+                certificateNumber: { type: Type.STRING },
+                propertyType: { type: Type.STRING },
+                totalFloorArea: { type: Type.STRING },
+                upgradePotentialExplanation: { type: Type.STRING },
+                breakdown: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            name: { type: Type.STRING },
+                            description: { type: Type.STRING },
+                            rating: { type: Type.STRING }
+                        }
+                    }
+                }
               },
-              required: ['current', 'potential', 'score']
+              required: ['current', 'potential', 'score', 'isEstimate']
             },
             comparison: {
               type: Type.OBJECT,
@@ -302,7 +407,7 @@ export const chatWithCopilot = async (
     Address: ${contextData.address}
     Current Monthly Cost: ${contextData.currentMonthlyAvg} ${contextData.currency}
     Projected Monthly Cost: ${contextData.projectedMonthlyAvg} ${contextData.currency}
-    Estimated EPC: ${contextData.epc?.current} -> ${contextData.epc?.potential}
+    Estimated EPC: ${contextData.epc?.current} -> ${contextData.epc?.potential} (Is Estimate: ${contextData.epc?.isEstimate})
     Neighborhood Benchmark: ${contextData.comparison.description} (Avg: ${contextData.comparison.similarHomeAvgCost})
     Data Sources: ${contextData.dataSources.map(d => d.title + ' (' + d.url + ')').join(', ')}
     Summary: ${contextData.summary}

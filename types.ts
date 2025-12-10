@@ -34,10 +34,23 @@ export interface UsageBreakdown {
   monthly: UsageMetric[];
 }
 
+export interface EPCFeature {
+  name: string; // e.g. "Wall", "Window"
+  description: string; // e.g. "Cavity wall, as built..."
+  rating: string; // e.g. "Good", "Average"
+}
+
 export interface EPCRating {
   current: string; // A-G
   potential: string; // A-G
   score: number; // 1-100
+  isEstimate?: boolean;
+  validUntil?: string;
+  totalFloorArea?: string;
+  certificateNumber?: string;
+  propertyType?: string;
+  breakdown?: EPCFeature[];
+  upgradePotentialExplanation?: string;
 }
 
 export interface SourceDoc {

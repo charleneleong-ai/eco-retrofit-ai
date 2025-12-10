@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppState, AnalysisResult, UserType, SavedAnalysis } from './types';
-import { analyzeHomeData } from './services/geminiService';
+import { analyzeHomeData, extractEPCData } from './services/geminiService';
 import { fileToBase64 } from './utils';
 import { saveAnalysis, getAllAnalyses, updateAnalysisSelection } from './services/dbService';
 import { MOCK_ANALYSIS_RESULT } from './services/mockData';
@@ -23,6 +23,7 @@ export default function App() {
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [restoredSelectedIndices, setRestoredSelectedIndices] = useState<number[] | undefined>(undefined);
   
+  const [isUpdatingEPC, setIsUpdatingEPC] = useState(false); // New state for background EPC update
   const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini...');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<SavedAnalysis[]>([]);
@@ -172,6 +173,68 @@ export default function App() {
       setHomeFiles([]);
       setVideoFiles([]);
       setState('upload');
+    }
+  };
+
+  const handleEPCUpload = async (file: File) => {
+    if (!analysisResult) return;
+    
+    setIsUpdatingEPC(true);
+    try {
+        const base64Data = await fileToBase64(file);
+        
+        // Use specialized lightweight function for speed
+        // This targets only the EPC data fields instead of running full analysis
+        const epcData = await extractEPCData({
+            name: file.name, 
+            mimeType: file.type, 
+            data: base64Data 
+        });
+
+        // Manually merge into existing result
+        const updatedResult: AnalysisResult = {
+            ...analysisResult,
+            epc: epcData,
+            // Add to source docs
+            sourceDocuments: [
+                ...(analysisResult.sourceDocuments || []),
+                { 
+                    name: file.name, 
+                    type: 'pdf', 
+                    date: new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })
+                }
+            ]
+        };
+
+        // Update state
+        setAnalysisResult(updatedResult);
+        
+        // Save the update
+        if (currentAnalysisId) {
+             // We treat the EPC as a generic file record for saving purposes
+             const epcFileRecord = { 
+                 name: file.name, 
+                 type: file.type, 
+                 data: base64Data 
+             };
+             
+             // We save the NEW result but append the file to whatever files we tracked before
+             // Note: In a real app we'd probably fetch existing files from DB to append to, 
+             // or just save this new state as the latest version.
+             const savedId = await saveAnalysis(
+                 userType, 
+                 updatedResult, 
+                 [epcFileRecord] // Saving just this file record associated with this result version
+             );
+             setCurrentAnalysisId(savedId);
+             await loadHistory();
+        }
+
+    } catch (error) {
+        console.error("Failed to update EPC", error);
+        alert("Could not verify the EPC document. Please try again.");
+    } finally {
+        setIsUpdatingEPC(false);
     }
   };
 
@@ -460,6 +523,8 @@ export default function App() {
             <AnalysisDashboard 
               data={analysisResult} 
               onUpdateAnalysis={handleUpdateAnalysis}
+              onEPCUpload={handleEPCUpload}
+              isUpdatingEPC={isUpdatingEPC}
               initialSelectedIndices={restoredSelectedIndices}
               onSelectionChange={handleDashboardSelectionChange}
             />

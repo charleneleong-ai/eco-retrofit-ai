@@ -11,6 +11,8 @@ import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, Bo
 interface DashboardProps {
   data: AnalysisResult;
   onUpdateAnalysis?: () => void;
+  onEPCUpload?: (file: File) => void;
+  isUpdatingEPC?: boolean;
   initialSelectedIndices?: number[];
   onSelectionChange?: (indices: number[]) => void;
 }
@@ -18,6 +20,8 @@ interface DashboardProps {
 const AnalysisDashboard: React.FC<DashboardProps> = ({ 
   data, 
   onUpdateAnalysis, 
+  onEPCUpload,
+  isUpdatingEPC = false,
   initialSelectedIndices,
   onSelectionChange 
 }) => {
@@ -389,25 +393,51 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
                     {/* Investment & ROI ROI Stats */}
                     {selectedRecs.size > 0 && (
-                      <div className="flex justify-between items-center gap-2 bg-slate-50 rounded-lg p-2.5 border border-slate-100">
-                          <div className="flex items-start gap-2">
-                             <Coins className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
-                             <div>
-                                <p className="text-[10px] uppercase font-bold text-slate-400">Est. Investment</p>
-                                <p className="text-sm font-bold text-slate-700">{data.currency}{calculatedInvestment.toLocaleString()}</p>
-                             </div>
-                          </div>
-                          <div className="flex items-start gap-2 text-right justify-end">
-                             <div className="flex flex-col items-end">
-                                <p className="text-[10px] uppercase font-bold text-slate-400">Payback Period</p>
-                                <p className="text-sm font-bold text-emerald-600">
-                                   {paybackPeriodYears < 1 
-                                     ? '< 1 Year' 
-                                     : `${paybackPeriodYears.toFixed(1)} Years`
-                                   }
+                      <div className="relative group cursor-help">
+                          {/* Tooltip */}
+                          <div className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-white/95 backdrop-blur-sm border border-slate-200 text-slate-600 text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0">
+                                <p className="font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                    <Coins className="w-3.5 h-3.5 text-slate-500" />
+                                    Financial Analysis
                                 </p>
-                             </div>
-                             <Timer className="w-4 h-4 text-emerald-500 mt-1 shrink-0" />
+                                <div className="space-y-2">
+                                    <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                                        <p className="font-semibold text-slate-700 mb-0.5">Estimated Investment</p>
+                                        <p className="leading-snug opacity-80">
+                                            Approximate upfront cost for materials and installation of selected measures.
+                                        </p>
+                                    </div>
+                                    <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                                        <p className="font-semibold text-emerald-800 mb-0.5">Payback Period</p>
+                                        <p className="leading-snug text-emerald-700 opacity-90">
+                                            Time required for monthly bill savings to cover the initial investment cost.
+                                        </p>
+                                    </div>
+                                </div>
+                                {/* Arrow */}
+                                <div className="absolute -bottom-1.5 left-8 w-3 h-3 bg-white border-b border-r border-slate-200 rotate-45"></div>
+                          </div>
+
+                          <div className="flex justify-between items-center gap-2 bg-slate-50 rounded-lg p-2.5 border border-slate-100 transition-colors group-hover:border-slate-300">
+                              <div className="flex items-start gap-2">
+                                 <Coins className="w-4 h-4 text-slate-400 mt-1 shrink-0" />
+                                 <div>
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-slate-500 transition-colors">Est. Investment</p>
+                                    <p className="text-sm font-bold text-slate-700">{data.currency}{calculatedInvestment.toLocaleString()}</p>
+                                 </div>
+                              </div>
+                              <div className="flex items-start gap-2 text-right justify-end">
+                                 <div className="flex flex-col items-end">
+                                    <p className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-slate-500 transition-colors">Payback Period</p>
+                                    <p className="text-sm font-bold text-emerald-600">
+                                       {paybackPeriodYears < 1 
+                                         ? '< 1 Year' 
+                                         : `${paybackPeriodYears.toFixed(1)} Years`
+                                       }
+                                    </p>
+                                 </div>
+                                 <Timer className="w-4 h-4 text-emerald-500 mt-1 shrink-0" />
+                              </div>
                           </div>
                       </div>
                     )}
@@ -530,10 +560,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
           {/* EPC Chart */}
           {data.epc && (
              <EPCBadge 
-               current={data.epc.current} 
-               potential={data.epc.potential} 
-               isEstimate={true} 
-               onUploadClick={onUpdateAnalysis}
+               epcData={data.epc}
+               isLoading={isUpdatingEPC}
+               onFileSelected={onEPCUpload}
              />
           )}
         </div>
