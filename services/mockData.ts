@@ -92,6 +92,8 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
   },
   comparison: {
     similarHomeAvgCost: 95,
+    areaAverageCost: 115,
+    efficientHomeCost: 78,
     efficiencyPercentile: 45,
     description: "Your home consumes 15% more energy than similar sized flats in London N5 [5]. The discrepancy is largely due to higher-than-average heating costs in winter months.",
     neighborhoodName: "Highbury, London (N5)",

@@ -28,7 +28,9 @@ export interface HomeProfile {
 }
 
 export interface ComparisonData {
-  similarHomeAvgCost: number;
+  similarHomeAvgCost: number; // The specific benchmark for THIS profile
+  areaAverageCost?: number;   // General average for the area (e.g. all 1-bed flats)
+  efficientHomeCost?: number; // Target: Top 20% efficient homes with this profile
   efficiencyPercentile: number; // 0-100, higher is better
   description: string;
   neighborhoodName?: string;

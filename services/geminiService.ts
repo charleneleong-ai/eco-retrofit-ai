@@ -144,10 +144,12 @@ export const updateBenchmark = async (
 
         Task:
         1. Estimate a new 'similarHomeAvgCost' for this SPECIFIC profile in this location. 
-           (e.g. Higher occupancy or WFH = higher avg usage. EV = significantly higher avg usage).
-        2. Recalculate 'efficiencyPercentile' (0-100). If the user cost is lower than the new profile-adjusted average, the score goes UP.
-        3. Write a new 'description' explaining the variance based on these specific factors.
-        4. Update the 'factors' array. 'localAvg' should be realistic for the neighborhood. 'variance' should be 'Higher', 'Lower', or 'Match'.
+        2. Estimate 'efficientHomeCost': What would the monthly cost be for a Top 20% efficient home with this same profile?
+        3. Estimate 'areaAverageCost': What is the broad average for ALL homes of this size in this area (regardless of profile specifics)?
+        4. Recalculate 'efficiencyPercentile' (0-100).
+        5. Write a new 'description' explaining the variance based on these specific factors.
+        6. Update the 'factors' array.
+           - IMPORTANT: 'variance' should be a SHORT sentence/phrase (max 10-12 words) explaining the context (e.g. "Higher usage due to WFH", "Consistent with typical 1-bed", "Lower than avg occupancy"). Do NOT use single words like 'Higher' or 'Match'.
 
         Output PURE JSON matching schema: ComparisonData.
     `;
@@ -162,6 +164,8 @@ export const updateBenchmark = async (
                     type: Type.OBJECT,
                     properties: {
                         similarHomeAvgCost: { type: Type.NUMBER },
+                        areaAverageCost: { type: Type.NUMBER },
+                        efficientHomeCost: { type: Type.NUMBER },
                         efficiencyPercentile: { type: Type.NUMBER },
                         description: { type: Type.STRING },
                         neighborhoodName: { type: Type.STRING },
@@ -238,6 +242,9 @@ export const analyzeHomeData = async (
     4. Identify Inefficiencies: Analyze photos/video for windows, insulation gaps, appliances.
     5. Generate Plan: Create a retrofit/improvement plan tailored STRICTLY to the User Profile.
     6. Benchmarking: Compare against typical homes in the region (infer location from currency/text).
+       - Calculate 'similarHomeAvgCost' based on size/type.
+       - Calculate 'efficientHomeCost' (Top 20% target).
+       - Calculate 'areaAverageCost' (Broad average).
     7. Sources & Citations (STRICT RULE): 
        - You MUST cite sources for every recommendation using bracketed numbers like [1], [2].
        - The 'dataSources' array in your JSON output MUST be populated by selecting the MOST RELEVANT URL from the "VERIFIED SOURCE LIBRARY" below.
@@ -251,6 +258,7 @@ export const analyzeHomeData = async (
          - 'Size': User's home vs Local Avg.
          - 'Occupancy': User occupancy vs Local Avg.
          - 'Heating': User's system vs Standard.
+         - IMPORTANT: 'variance' field should be a SHORT sentence/phrase (max 10-12 words) explaining the context/impact (e.g. "Higher usage due to WFH", "Consistent with typical 1-bed", "Matches area standard"). Do NOT use single words like 'Match' or 'Higher'.
        
     === VERIFIED SOURCE LIBRARY ===
     ${VERIFIED_SOURCES_LIBRARY}
@@ -300,12 +308,14 @@ export const analyzeHomeData = async (
       },
       "comparison": {
         "similarHomeAvgCost": number,
+        "areaAverageCost": number,
+        "efficientHomeCost": number,
         "efficiencyPercentile": number,
         "description": "Comparison text with citations like [1] or [3].",
         "neighborhoodName": "String",
         "factors": [
-           { "label": "Build Type", "userValue": "String", "localAvg": "String", "variance": "String" },
-           { "label": "Size", "userValue": "String", "localAvg": "String", "variance": "String" }
+           { "label": "Build Type", "userValue": "String", "localAvg": "String", "variance": "Contextual insight string" },
+           { "label": "Size", "userValue": "String", "localAvg": "String", "variance": "Contextual insight string" }
         ]
       },
       "dataSources": [
@@ -434,6 +444,8 @@ export const analyzeHomeData = async (
               type: Type.OBJECT,
               properties: {
                 similarHomeAvgCost: { type: Type.NUMBER },
+                areaAverageCost: { type: Type.NUMBER },
+                efficientHomeCost: { type: Type.NUMBER },
                 efficiencyPercentile: { type: Type.NUMBER },
                 description: { type: Type.STRING },
                 neighborhoodName: { type: Type.STRING },
