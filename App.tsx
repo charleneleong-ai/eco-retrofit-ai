@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AppState, AnalysisResult, UserType, SavedAnalysis } from './types';
 import { analyzeHomeData } from './services/geminiService';
 import { fileToBase64 } from './utils';
-import { saveAnalysis, getAllAnalyses } from './services/dbService';
+import { saveAnalysis, getAllAnalyses, updateAnalysisSelection } from './services/dbService';
 import { MOCK_ANALYSIS_RESULT } from './services/mockData';
 import UploadZone from './components/UploadZone';
 import Button from './components/Button';
@@ -20,6 +20,8 @@ export default function App() {
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [previousAnalysis, setPreviousAnalysis] = useState<AnalysisResult | null>(null);
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [restoredSelectedIndices, setRestoredSelectedIndices] = useState<number[] | undefined>(undefined);
   
   const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini...');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -115,12 +117,14 @@ export default function App() {
       
       // Save to local DB
       setLoadingMsg('Saving results locally...');
-      await saveAnalysis(userType, result, billData.map(b => ({ name: b.name, type: b.type, data: b.data })));
+      const savedId = await saveAnalysis(userType, result, billData.map(b => ({ name: b.name, type: b.type, data: b.data })));
+      setCurrentAnalysisId(savedId);
       await loadHistory(); // Refresh history count
 
       setAnalysisResult(result);
       // Reset previous analysis context after successful update
       setPreviousAnalysis(null);
+      setRestoredSelectedIndices(undefined); // Reset selections for fresh analysis
       
       setState('dashboard');
       
@@ -151,9 +155,11 @@ export default function App() {
       })) || [];
 
       // Save demo to history so it persists
-      await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, mockFiles);
+      const savedId = await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, mockFiles);
+      setCurrentAnalysisId(savedId);
       await loadHistory();
       
+      setRestoredSelectedIndices(undefined);
       setState('dashboard');
     }, 1500);
   };
@@ -177,6 +183,11 @@ export default function App() {
     setHomeFiles([]);
     setVideoFiles([]);
     setPreviousAnalysis(null);
+    
+    // Restore state
+    setCurrentAnalysisId(item.id);
+    setRestoredSelectedIndices(item.selectedRecommendationIndices);
+    
     setState('dashboard');
   };
 
@@ -185,9 +196,22 @@ export default function App() {
         setState('upload');
         setAnalysisResult(null);
         setPreviousAnalysis(null);
+        setCurrentAnalysisId(null);
+        setRestoredSelectedIndices(undefined);
         setBillFiles([]);
         setHomeFiles([]);
         setVideoFiles([]);
+    }
+  };
+
+  const handleDashboardSelectionChange = (indices: number[]) => {
+    if (currentAnalysisId) {
+      // 1. Auto-save changes to DB
+      updateAnalysisSelection(currentAnalysisId, indices).catch(err => {
+        console.error("Failed to auto-save selection state", err);
+      });
+      // 2. Update local state so selections persist if user navigates away and comes back
+      setRestoredSelectedIndices(indices);
     }
   };
 
@@ -436,6 +460,8 @@ export default function App() {
             <AnalysisDashboard 
               data={analysisResult} 
               onUpdateAnalysis={handleUpdateAnalysis}
+              initialSelectedIndices={restoredSelectedIndices}
+              onSelectionChange={handleDashboardSelectionChange}
             />
             <ChatInterface analysisResult={analysisResult} />
           </>

@@ -30,19 +30,26 @@ export const initDB = (): Promise<IDBDatabase> => {
 export const saveAnalysis = async (
   userType: UserType,
   result: AnalysisResult,
-  billFiles: FileData[]
+  billFiles: FileData[],
+  selectedRecommendationIndices?: number[]
 ): Promise<string> => {
   const db = await initDB();
   
   // Create a unique ID
   const id = crypto.randomUUID();
   
+  // Default to all selected if not specified
+  const defaultIndices = selectedRecommendationIndices 
+    ? selectedRecommendationIndices 
+    : result.recommendations.map((_, i) => i);
+
   const record: SavedAnalysis = {
     id,
     date: Date.now(),
     userType,
     result,
-    billFiles
+    billFiles,
+    selectedRecommendationIndices: defaultIndices
   };
 
   return new Promise((resolve, reject) => {
@@ -52,6 +59,28 @@ export const saveAnalysis = async (
 
     request.onsuccess = () => resolve(id);
     request.onerror = () => reject("Failed to save analysis");
+  });
+};
+
+export const updateAnalysisSelection = async (id: string, selectedIndices: number[]): Promise<void> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(id);
+
+    getRequest.onsuccess = () => {
+      const data = getRequest.result as SavedAnalysis;
+      if (data) {
+        data.selectedRecommendationIndices = selectedIndices;
+        store.put(data);
+        resolve();
+      } else {
+        // Silently fail if ID not found (e.g. demo data not in DB yet)
+        resolve(); 
+      }
+    };
+    getRequest.onerror = () => reject("Failed to get analysis");
   });
 };
 

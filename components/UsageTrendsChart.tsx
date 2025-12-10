@@ -519,8 +519,8 @@ const UsageTrendsChart: React.FC<UsageTrendsChartProps> = ({ data, currency }) =
   const showNav = activeTab !== 'Year';
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+    <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 gap-4">
         
         {/* Left Header: Title + Subtitle/Nav */}
         <div>

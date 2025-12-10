@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { SavedAnalysis } from '../types';
 import { deleteAnalysis } from '../services/dbService';
+import { parseSavingsValue } from '../utils';
 import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin } from 'lucide-react';
 
 interface HistoryViewProps {
@@ -62,8 +63,31 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
 
       <div className="grid grid-cols-1 gap-4">
         {items.map((item) => {
-          const savings = item.result.currentMonthlyAvg - item.result.projectedMonthlyAvg;
-          const annualSavings = savings * 12;
+          // Calculate annual savings logic:
+          // 1. If we have recommendations AND specific user selections, sum those specific ones.
+          // 2. If we have recommendations but NO specific selections (legacy/default), sum ALL recommendations.
+          // 3. Fallback to monthly difference if no recommendations exist.
+          
+          let annualSavings = 0;
+          let selectedCount = 0;
+          const totalCount = item.result.recommendations?.length || 0;
+
+          if (item.result.recommendations && item.result.recommendations.length > 0) {
+            const indicesToUse = item.selectedRecommendationIndices 
+              ? item.selectedRecommendationIndices 
+              : item.result.recommendations.map((_, i) => i); // Default to all if undefined
+            
+            selectedCount = indicesToUse.length;
+
+            annualSavings = item.result.recommendations.reduce((acc, rec, idx) => {
+              if (indicesToUse.includes(idx)) {
+                return acc + parseSavingsValue(rec.estimatedAnnualSavings);
+              }
+              return acc;
+            }, 0);
+          } else {
+             annualSavings = (item.result.currentMonthlyAvg - item.result.projectedMonthlyAvg) * 12;
+          }
 
           return (
             <div 
@@ -122,6 +146,11 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
                     <p className="text-2xl font-bold text-emerald-600">
                       {item.result.currency}{Math.round(annualSavings).toLocaleString()}
                     </p>
+                    {totalCount > 0 && (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Based on selected {selectedCount}/{totalCount} actions
+                      </p>
+                    )}
                   </div>
 
                   <div className="w-px h-12 bg-slate-100 hidden md:block"></div>

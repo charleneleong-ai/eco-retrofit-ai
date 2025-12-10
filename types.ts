@@ -75,6 +75,7 @@ export interface SavedAnalysis {
   userType: UserType;
   result: AnalysisResult;
   billFiles: FileData[];
+  selectedRecommendationIndices?: number[];
 }
 
 export interface FileWithPreview {

@@ -24,6 +24,18 @@ export const formatCurrency = (value: number, currency: string = '$') => {
   }).format(value);
 };
 
+export const parseSavingsValue = (savingsStr: string): number => {
+  try {
+    // Remove currency symbols and split
+    const numbers = savingsStr.replace(/[^0-9\.\-]/g, ' ').split('-').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+    if (numbers.length === 2) return (numbers[0] + numbers[1]) / 2;
+    if (numbers.length === 1) return numbers[0];
+    return 0;
+  } catch (e) {
+    return 0;
+  }
+};
+
 export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreakdown => {
   const daily: UsageMetric[] = [];
   const weekly: UsageMetric[] = [];
