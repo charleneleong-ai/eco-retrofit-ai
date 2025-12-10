@@ -10,10 +10,29 @@ export interface Recommendation {
   category: 'Insulation' | 'Heating' | 'Solar' | 'Behavioral' | 'Windows';
 }
 
+export interface ComparisonFactor {
+  label: string;      // e.g. "Build Era", "Occupancy"
+  userValue: string;  // e.g. "1930s Semi", "2 Adults"
+  localAvg: string;   // e.g. "1930-1950", "2.4 People"
+  variance: string;   // e.g. "Match", "Higher", "Lower"
+}
+
+export interface HomeProfile {
+  propertyType: string;
+  bedrooms: number;
+  occupants: number;
+  homeHours: string; // e.g. "Evenings & Weekends", "All Day (WFH)"
+  heatingType: string;
+  hasEV: boolean;
+  appliances: string[];
+}
+
 export interface ComparisonData {
   similarHomeAvgCost: number;
   efficiencyPercentile: number; // 0-100, higher is better
   description: string;
+  neighborhoodName?: string;
+  factors?: ComparisonFactor[];
 }
 
 export interface DataSource {
@@ -74,6 +93,7 @@ export interface AnalysisResult {
   usageBreakdown?: UsageBreakdown;
   epc?: EPCRating;
   sourceDocuments?: SourceDoc[];
+  homeProfile?: HomeProfile; // Added for editable comparison logic
 }
 
 export interface FileData {

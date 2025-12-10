@@ -66,10 +66,26 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
     { name: 'OVO_Bill_12Sep25_11Oct25.pdf', type: 'pdf', date: 'Oct 2025', url: '#' },
     { name: 'OVO_Bill_12Oct25_11Nov25.pdf', type: 'pdf', date: 'Nov 2025', url: '#' }
   ],
+  homeProfile: {
+    propertyType: "Flat",
+    bedrooms: 1,
+    occupants: 1,
+    homeHours: "Evenings & Weekends",
+    heatingType: "Gas Central",
+    hasEV: false,
+    appliances: ["Washing Machine", "Fridge Freezer", "Electric Oven"]
+  },
   comparison: {
     similarHomeAvgCost: 95,
     efficiencyPercentile: 45,
-    description: "Your home consumes 15% more energy than similar sized flats in London N5 [5]. The discrepancy is largely due to higher-than-average heating costs in winter months."
+    description: "Your home consumes 15% more energy than similar sized flats in London N5 [5]. The discrepancy is largely due to higher-than-average heating costs in winter months.",
+    neighborhoodName: "Highbury, London (N5)",
+    factors: [
+        { label: "Build Type", userValue: "Victorian Conversion", localAvg: "Victorian/Edwardian", variance: "Match" },
+        { label: "Size", userValue: "1 Bed", localAvg: "1-2 Bed", variance: "Slightly Smaller" },
+        { label: "Occupancy", userValue: "1 Adult", localAvg: "1.8 Adults", variance: "Lower" },
+        { label: "Heating", userValue: "Gas Central", localAvg: "Gas Central", variance: "Match" }
+    ]
   },
   dataSources: [
     { title: "OFGEM Average Usage Figures", url: "https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-use-explained" },

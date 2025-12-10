@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResult, UserType, SourceDoc, EPCRating } from '../types';
+import { AnalysisResult, UserType, SourceDoc, EPCRating, HomeProfile, ComparisonData } from '../types';
 import { generateDerivedUsageData } from '../utils';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -121,6 +121,78 @@ export const extractEPCData = async (
   }
 };
 
+export const updateBenchmark = async (
+    currentAnalysis: AnalysisResult, 
+    newProfile: HomeProfile
+): Promise<ComparisonData> => {
+    
+    const prompt = `
+        You are a Home Energy Intelligence Engine.
+        Refine the neighborhood benchmark comparison based on Updated Home Profile constraints.
+
+        Context:
+        Location: ${currentAnalysis.comparison.neighborhoodName || currentAnalysis.address}
+        Current User Monthly Cost: ${currentAnalysis.currentMonthlyAvg} ${currentAnalysis.currency}
+        
+        New Profile Details:
+        - Occupancy: ${newProfile.occupants} people
+        - Size/Bedrooms: ${newProfile.bedrooms} bedroom(s), ${newProfile.propertyType}
+        - Hours at Home: ${newProfile.homeHours}
+        - Heating: ${newProfile.heatingType}
+        - EV Charging: ${newProfile.hasEV ? 'Yes' : 'No'}
+        - Appliances: ${newProfile.appliances.join(', ')}
+
+        Task:
+        1. Estimate a new 'similarHomeAvgCost' for this SPECIFIC profile in this location. 
+           (e.g. Higher occupancy or WFH = higher avg usage. EV = significantly higher avg usage).
+        2. Recalculate 'efficiencyPercentile' (0-100). If the user cost is lower than the new profile-adjusted average, the score goes UP.
+        3. Write a new 'description' explaining the variance based on these specific factors.
+        4. Update the 'factors' array. 'localAvg' should be realistic for the neighborhood. 'variance' should be 'Higher', 'Lower', or 'Match'.
+
+        Output PURE JSON matching schema: ComparisonData.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: MODEL_NAME,
+            contents: { parts: [{ text: prompt }] },
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        similarHomeAvgCost: { type: Type.NUMBER },
+                        efficiencyPercentile: { type: Type.NUMBER },
+                        description: { type: Type.STRING },
+                        neighborhoodName: { type: Type.STRING },
+                        factors: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    label: { type: Type.STRING },
+                                    userValue: { type: Type.STRING },
+                                    localAvg: { type: Type.STRING },
+                                    variance: { type: Type.STRING }
+                                }
+                            }
+                        }
+                    },
+                    required: ['similarHomeAvgCost', 'efficiencyPercentile', 'description', 'factors']
+                }
+            }
+        });
+
+        if (response.text) {
+            return JSON.parse(response.text);
+        }
+        throw new Error("Failed to refine benchmark");
+    } catch (error) {
+        console.error("Benchmark Update Error", error);
+        throw error;
+    }
+}
+
 export const analyzeHomeData = async (
   billFiles: { mimeType: string; data: string; name?: string }[],
   homeImages: string[],
@@ -169,6 +241,15 @@ export const analyzeHomeData = async (
        - You MUST cite sources for every recommendation using bracketed numbers like [1], [2].
        - The 'dataSources' array in your JSON output MUST be populated by selecting the MOST RELEVANT URL from the "VERIFIED SOURCE LIBRARY" below.
        - DO NOT hallucinate URLs. Use EXACTLY the URLs provided in the library.
+
+    8. Neighborhood Intelligence (NEW):
+       - Estimate the 'neighborhoodName' (e.g. "Islington, London") based on address.
+       - Populate 'homeProfile' object with inferred or default data (e.g. Property type from photos, occupancy inferred from usage or default to 2).
+       - Populate 'factors' array in comparison object with:
+         - 'Build Type': User's home vs Local Avg.
+         - 'Size': User's home vs Local Avg.
+         - 'Occupancy': User occupancy vs Local Avg.
+         - 'Heating': User's system vs Standard.
        
     === VERIFIED SOURCE LIBRARY ===
     ${VERIFIED_SOURCES_LIBRARY}
@@ -201,10 +282,24 @@ export const analyzeHomeData = async (
            { "name": "Window", "description": "Single glazed", "rating": "Very Poor" }
         ]
       },
+      "homeProfile": {
+          "propertyType": "Semi-detached",
+          "bedrooms": 3,
+          "occupants": 2,
+          "homeHours": "Evenings & Weekends",
+          "heatingType": "Gas Boiler",
+          "hasEV": false,
+          "appliances": ["Washing Machine", "Dishwasher"]
+      },
       "comparison": {
         "similarHomeAvgCost": number,
         "efficiencyPercentile": number,
-        "description": "Comparison text with citations like [1] or [3]."
+        "description": "Comparison text with citations like [1] or [3].",
+        "neighborhoodName": "String",
+        "factors": [
+           { "label": "Build Type", "userValue": "String", "localAvg": "String", "variance": "String" },
+           { "label": "Size", "userValue": "String", "localAvg": "String", "variance": "String" }
+        ]
       },
       "dataSources": [
         { "title": "Exact Title from Library", "url": "Exact URL from Library" }
@@ -301,12 +396,37 @@ export const analyzeHomeData = async (
               },
               required: ['current', 'potential', 'score', 'isEstimate']
             },
+            homeProfile: {
+                type: Type.OBJECT,
+                properties: {
+                    propertyType: { type: Type.STRING },
+                    bedrooms: { type: Type.NUMBER },
+                    occupants: { type: Type.NUMBER },
+                    homeHours: { type: Type.STRING },
+                    heatingType: { type: Type.STRING },
+                    hasEV: { type: Type.BOOLEAN },
+                    appliances: { type: Type.ARRAY, items: { type: Type.STRING } }
+                }
+            },
             comparison: {
               type: Type.OBJECT,
               properties: {
                 similarHomeAvgCost: { type: Type.NUMBER },
                 efficiencyPercentile: { type: Type.NUMBER },
-                description: { type: Type.STRING }
+                description: { type: Type.STRING },
+                neighborhoodName: { type: Type.STRING },
+                factors: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            label: { type: Type.STRING },
+                            userValue: { type: Type.STRING },
+                            localAvg: { type: Type.STRING },
+                            variance: { type: Type.STRING }
+                        }
+                    }
+                }
               },
               required: ['similarHomeAvgCost', 'efficiencyPercentile', 'description']
             },

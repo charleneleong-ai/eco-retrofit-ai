@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AnalysisResult } from '../types';
+import { AnalysisResult, HomeProfile } from '../types';
 import SavingsChart from './SavingsChart';
 import UsageTrendsChart from './UsageTrendsChart';
 import EPCBadge from './EPCBadge';
+import HomeProfileModal from './HomeProfileModal';
+import { updateBenchmark } from '../services/geminiService';
 import { parseSavingsValue } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer, Layers, Map as MapIcon, Building2, Pencil } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -18,13 +20,22 @@ interface DashboardProps {
 }
 
 const AnalysisDashboard: React.FC<DashboardProps> = ({ 
-  data, 
+  data: initialData, 
   onUpdateAnalysis, 
   onEPCUpload,
   isUpdatingEPC = false,
   initialSelectedIndices,
   onSelectionChange 
 }) => {
+  // Local state to handle data updates (like benchmark refinement)
+  const [data, setData] = useState<AnalysisResult>(initialData);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  // Update local data if props change (e.g. parent re-analyzes)
+  useEffect(() => {
+     setData(initialData);
+  }, [initialData]);
+
   // --- State for Interactive Features ---
   const [selectedRecs, setSelectedRecs] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<'Daily' | 'Weekly' | 'Monthly' | 'Yearly'>('Yearly');
@@ -44,6 +55,21 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       }
     }
   }, [data.recommendations, initialSelectedIndices]);
+
+  const handleProfileSave = async (newProfile: HomeProfile) => {
+      try {
+          const newComparison = await updateBenchmark(data, newProfile);
+          
+          setData(prev => ({
+              ...prev,
+              homeProfile: newProfile,
+              comparison: newComparison
+          }));
+      } catch (error) {
+          console.error("Failed to update benchmark", error);
+          alert("Could not update benchmark comparison. Please try again.");
+      }
+  };
 
   // --- Derived Calculations ---
   
@@ -247,6 +273,23 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  // Google Maps Embed URL
+  const mapUrl = useMemo(() => {
+    const query = encodeURIComponent(data.address || 'London, UK');
+    return `https://maps.google.com/maps?q=${query}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
+  }, [data.address]);
+
+  // Default profile if none provided by API
+  const defaultProfile: HomeProfile = {
+      propertyType: 'Flat',
+      bedrooms: 1,
+      occupants: 2,
+      homeHours: 'Evenings & Weekends',
+      heatingType: 'Gas Central',
+      hasEV: false,
+      appliances: []
+  };
+
   return (
     <div className="space-y-5 animate-fade-in pb-12">
       
@@ -322,7 +365,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Bill Impact & Action Plan Card */}
-        {/* Compact Layout: Reduced padding (p-4), gaps (gap-4), and height (h-340). */}
         <div id="savings-panel" className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 md:col-span-2 lg:col-span-1 scroll-mt-24">
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3">
               <h3 className="text-sm font-medium text-slate-500 flex items-center gap-2">
@@ -358,10 +400,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
               </div>
            </div>
 
-           {/* Layout Logic: Grid on MD (Tablet) and LG (Desktop). 
-               Left col 400px on LG. 
-               Reduced height to 340px to reduce vertical white space. 
-           */}
            <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-[400px_1fr] gap-4 md:h-[340px]">
               {/* Left Column: Chart & Stats */}
               <div className="flex flex-col justify-between gap-2 h-auto md:h-full md:col-span-5 lg:col-span-1">
@@ -510,54 +548,16 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+        {/* Executive Summary */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col">
           <h3 className="text-lg font-bold text-slate-800 mb-2">Executive Summary</h3>
-          <div className="prose prose-slate max-w-none text-slate-600 text-sm">
+          <div className="prose prose-slate max-w-none text-slate-600 text-sm flex-1">
             <ReactMarkdown components={MarkdownComponents}>{data.summary}</ReactMarkdown>
           </div>
         </div>
 
-        {/* Neighborhood Benchmark & EPC */}
+        {/* EPC Chart */}
         <div className="space-y-4">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl"></div>
-            
-            <div className="flex items-center gap-2 mb-3 relative z-10">
-              <div className="p-2 bg-blue-100 rounded-lg text-blue-700">
-                <Users className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-slate-800">Neighborhood</h3>
-            </div>
-            
-            <div className="flex-1 flex flex-col justify-center relative z-10">
-              <div className="mb-3">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-slate-500 font-medium">Efficiency Score</span>
-                  <span className="font-bold text-slate-700">{data.comparison.efficiencyPercentile}/100</span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-100">
-                  <div 
-                    className="bg-gradient-to-r from-red-400 via-amber-400 to-emerald-500 h-full rounded-full transition-all duration-1000 relative"
-                    style={{ width: `${data.comparison.efficiencyPercentile}%` }}
-                  >
-                    <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-white opacity-50"></div>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400 mt-1.5 text-right">Better than {data.comparison.efficiencyPercentile}% of similar homes</p>
-              </div>
-              
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 mb-3">
-                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wide mb-1">Local Benchmark</p>
-                <p className="text-2xl font-bold text-slate-800">{data.currency}{data.comparison.similarHomeAvgCost}<span className="text-sm font-normal text-slate-400">/mo</span></p>
-              </div>
-
-              <div className="text-sm text-slate-600 italic leading-relaxed line-clamp-3">
-                 "{renderTextWithCitations(data.comparison.description)}"
-              </div>
-            </div>
-          </div>
-
-          {/* EPC Chart */}
           {data.epc && (
              <EPCBadge 
                epcData={data.epc}
@@ -567,6 +567,141 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Neighborhood Intelligence Panel */}
+      <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
+          <div className="bg-slate-50/50 p-4 border-b border-slate-100 flex items-center justify-between">
+             <div className="flex items-center gap-2">
+               <div className="bg-indigo-100 p-1.5 rounded-lg">
+                 <MapIcon className="w-4 h-4 text-indigo-600" />
+               </div>
+               <div>
+                  <h3 className="text-base font-bold text-slate-800">Neighborhood Intelligence</h3>
+                  {data.comparison.neighborhoodName && (
+                      <p className="text-xs text-slate-500 font-medium">{data.comparison.neighborhoodName}</p>
+                  )}
+               </div>
+             </div>
+             
+             {/* Efficiency Score Badge */}
+             <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+                 <div className="text-right">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide">Efficiency Score</p>
+                    <p className="text-sm font-bold text-slate-800 leading-none">{data.comparison.efficiencyPercentile}/100</p>
+                 </div>
+                 <div className="w-12 h-12 relative flex items-center justify-center">
+                     <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="24" cy="24" r="18" stroke="#f1f5f9" strokeWidth="4" fill="none" />
+                        <circle 
+                            cx="24" cy="24" r="18" 
+                            stroke="url(#gradient)" 
+                            strokeWidth="4" 
+                            fill="none" 
+                            strokeDasharray="113" 
+                            strokeDashoffset={113 - (113 * data.comparison.efficiencyPercentile) / 100}
+                            className="transition-all duration-1000 ease-out"
+                        />
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stopColor="#ef4444" />
+                                <stop offset="50%" stopColor="#fbbf24" />
+                                <stop offset="100%" stopColor="#10b981" />
+                            </linearGradient>
+                        </defs>
+                     </svg>
+                 </div>
+             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_350px] gap-0">
+             {/* Left: Map Visualization */}
+             <div className="relative bg-slate-100 min-h-[300px] md:h-full border-r border-slate-200 group">
+                <iframe 
+                   title="Neighborhood Map"
+                   width="100%" 
+                   height="100%" 
+                   src={mapUrl}
+                   style={{ border: 0, opacity: 0.85, mixBlendMode: 'multiply' }} 
+                   allowFullScreen 
+                   loading="lazy" 
+                   referrerPolicy="no-referrer-when-downgrade"
+                   className="grayscale-[20%] group-hover:grayscale-0 transition-all duration-500"
+                />
+                
+                {/* Overlay UI - Floating Stats Card */}
+                <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-slate-200 max-w-[200px]">
+                   <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide mb-1">Local Average</p>
+                   <p className="text-2xl font-bold text-slate-800 mb-0.5">{data.currency}{data.comparison.similarHomeAvgCost}<span className="text-xs text-slate-500 font-normal">/mo</span></p>
+                   <p className="text-xs text-emerald-600 font-medium">Benchmark for {data.comparison.neighborhoodName?.split(',')[0] || 'Area'}</p>
+                </div>
+             </div>
+
+             {/* Right: Comparison Matrix */}
+             <div className="p-6 bg-white flex flex-col h-full">
+                 <div className="flex items-center justify-between mb-4">
+                     <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-slate-500" />
+                        Comparison Factors
+                     </h4>
+                     <button 
+                        onClick={() => setIsProfileOpen(true)}
+                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded transition-colors"
+                     >
+                        <Pencil className="w-3 h-3" /> Edit Profile
+                     </button>
+                 </div>
+                 
+                 <div className="space-y-4 flex-1">
+                    {/* Dynamic Factors List */}
+                    {data.comparison.factors && data.comparison.factors.length > 0 ? (
+                        data.comparison.factors.map((factor, i) => (
+                            <div key={i} className="flex flex-col gap-1.5 pb-3 border-b border-slate-50 last:border-0 last:pb-0">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{factor.label}</span>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                        factor.variance === 'Match' ? 'bg-emerald-100 text-emerald-700' :
+                                        factor.variance === 'Higher' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-slate-100 text-slate-600'
+                                    }`}>
+                                        {factor.variance}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-800"></div>
+                                        {factor.userValue}
+                                    </div>
+                                    <div className="text-slate-400 font-medium text-xs">
+                                        vs {factor.localAvg}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                         <div className="text-center py-8 text-slate-400 text-sm">
+                             Detailed comparison data not available.
+                         </div>
+                    )}
+                 </div>
+
+                 <div className="mt-6 bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 leading-relaxed">
+                    <p className="font-bold mb-1 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" />
+                        AI Insight
+                    </p>
+                    {renderTextWithCitations(data.comparison.description)}
+                 </div>
+             </div>
+          </div>
+      </div>
+      
+      {/* Profile Modal */}
+      <HomeProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)}
+        currentProfile={data.homeProfile || defaultProfile}
+        onSave={handleProfileSave}
+      />
 
       {/* Usage Trends Chart */}
       {data.usageBreakdown && (
