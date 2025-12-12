@@ -1,18 +1,19 @@
 
 import React, { useState } from 'react';
 import { SavedAnalysis, AnalysisVersion, SourceDoc } from '../types';
-import { deleteAnalysis } from '../services/dbService';
+import { deleteAnalysis, deleteAnalysisVersion } from '../services/dbService';
 import { parseSavingsValue } from '../utils';
-import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin, Layers, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin, Layers, Clock, ChevronDown, ChevronUp, FilePlus, X } from 'lucide-react';
 
 interface HistoryViewProps {
   items: SavedAnalysis[];
   onSelect: (item: SavedAnalysis, version?: AnalysisVersion) => void;
+  onUpdate: (item: SavedAnalysis) => void; // New prop for handling version updates
   onRefresh: () => void;
   onBack: () => void;
 }
 
-const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, onBack }) => {
+const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, onRefresh, onBack }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -29,6 +30,23 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
         setDeletingId(null);
       }
     }
+  };
+
+  const handleDeleteVersion = async (e: React.MouseEvent, analysisId: string, versionId: string) => {
+      e.stopPropagation();
+      if (confirm('Are you sure you want to delete this specific version?')) {
+          try {
+              await deleteAnalysisVersion(analysisId, versionId);
+              onRefresh();
+          } catch (error) {
+              console.error("Failed to delete version", error);
+          }
+      }
+  };
+
+  const handleUpdateClick = (e: React.MouseEvent, item: SavedAnalysis) => {
+      e.stopPropagation();
+      onUpdate(item);
   };
 
   const toggleExpand = (e: React.MouseEvent, id: string) => {
@@ -180,7 +198,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
 
                     {/* Right: Stats & Actions */}
                     <div className="flex items-center gap-6 shrink-0">
-                        <div className="text-right">
+                        <div className="text-right hidden sm:block">
                             <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Est. Annual Savings</p>
                             <p className="text-2xl font-bold text-emerald-600">
                                 {result.currency}{Math.round(annualSavings).toLocaleString()}
@@ -194,28 +212,38 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
 
                         <div className="w-px h-12 bg-slate-100 hidden md:block"></div>
 
-                        {versionCount > 1 && (
+                        <div className="flex items-center gap-2 z-10">
                             <button
-                                onClick={(e) => toggleExpand(e, item.id)}
-                                className={`p-2 rounded-lg transition-colors border ${
-                                    expandedId === item.id 
-                                    ? 'bg-slate-100 text-slate-700 border-slate-300' 
-                                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
-                                }`}
-                                title="View Version History"
+                                onClick={(e) => handleUpdateClick(e, item)}
+                                className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors border border-transparent hover:border-emerald-200"
+                                title="Add data to create New Version"
                             >
-                                {expandedId === item.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                <FilePlus className="w-5 h-5" />
                             </button>
-                        )}
 
-                        <button 
-                            onClick={(e) => handleDelete(e, item.id)}
-                            disabled={deletingId === item.id}
-                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
-                            title="Delete Report"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                        </button>
+                            {versionCount > 1 && (
+                                <button
+                                    onClick={(e) => toggleExpand(e, item.id)}
+                                    className={`p-2 rounded-lg transition-colors border ${
+                                        expandedId === item.id 
+                                        ? 'bg-slate-100 text-slate-700 border-slate-300' 
+                                        : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                    }`}
+                                    title="View Version History"
+                                >
+                                    {expandedId === item.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                </button>
+                            )}
+
+                            <button 
+                                onClick={(e) => handleDelete(e, item.id)}
+                                disabled={deletingId === item.id}
+                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete Report"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -228,10 +256,12 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
                             return (
                                 <div 
                                    key={ver.versionId} 
-                                   onClick={() => onSelect(item, ver)}
-                                   className="flex items-center justify-between p-3 rounded-lg bg-white border border-slate-200 hover:border-emerald-300 hover:shadow-sm cursor-pointer transition-all"
+                                   className="flex items-center justify-between p-3 rounded-lg bg-white border border-slate-200 hover:border-emerald-300 hover:shadow-sm cursor-pointer transition-all group/version"
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div 
+                                      className="flex items-center gap-3 flex-1"
+                                      onClick={() => onSelect(item, ver)}
+                                    >
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                                             isLatest ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                                         }`}>
@@ -249,8 +279,18 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
                                             </p>
                                         </div>
                                     </div>
+                                    
                                     <div className="flex items-center gap-2">
-                                        <ArrowRight className="w-4 h-4 text-slate-300" />
+                                        <button 
+                                            onClick={(e) => handleDeleteVersion(e, item.id, ver.versionId)}
+                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover/version:opacity-100"
+                                            title="Delete this version"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <div onClick={() => onSelect(item, ver)}>
+                                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover/version:text-emerald-500" />
+                                        </div>
                                     </div>
                                 </div>
                             );

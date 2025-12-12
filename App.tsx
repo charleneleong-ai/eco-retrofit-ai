@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { AppState, AnalysisResult, UserType, SavedAnalysis, AnalysisVersion } from './types';
 import { analyzeHomeData, extractEPCData } from './services/geminiService';
 import { fileToBase64, extractFrameFromVideo, generateDemoFloorPlan } from './utils';
-import { saveAnalysis, getAllAnalyses, updateAnalysisSelection } from './services/dbService';
+import { saveAnalysis, getAllAnalyses, updateAnalysisSelection, deleteAnalysis } from './services/dbService';
 import { MOCK_ANALYSIS_RESULT } from './services/mockData';
 import UploadZone from './components/UploadZone';
 import Button from './components/Button';
@@ -187,6 +187,22 @@ export default function App() {
     setState('analyzing');
     setLoadingMsg("Loading sample data...");
     
+    // Clean up existing Demo entries to prevent duplicates
+    try {
+        const existingHistory = await getAllAnalyses();
+        const demoEntries = existingHistory.filter(item => 
+            // Identify demo entries by the specific customer name used in mockData
+            item.versions[0]?.result.customerName === MOCK_ANALYSIS_RESULT.customerName
+        );
+        
+        // Delete all found old demo entries
+        for (const entry of demoEntries) {
+            await deleteAnalysis(entry.id);
+        }
+    } catch (e) {
+        console.warn("Failed to cleanup old demo entries", e);
+    }
+    
     // For demo, we now use the interactive Three.js view instead of generating a static 2D canvas plan
     setIsDemoMode(true);
     
@@ -198,6 +214,7 @@ export default function App() {
     setTimeout(async () => {
       setAnalysisResult(MOCK_ANALYSIS_RESULT);
       setUserType('renter');
+      setPreviousAnalysis(null);
       
       // Mock files for history purposes (empty data to save space)
       const mockFiles = MOCK_ANALYSIS_RESULT.sourceDocuments?.map(doc => ({
@@ -206,14 +223,14 @@ export default function App() {
         data: '' 
       })) || [];
 
-      // Save demo
+      // Save demo (this creates a fresh ID)
       const savedId = await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, mockFiles);
       setCurrentAnalysisId(savedId);
       await loadHistory();
       
       setRestoredSelectedIndices(undefined);
       setState('dashboard');
-    }, 1500);
+    }, 1000);
   };
 
   const handleUpdateAnalysis = () => {
@@ -224,6 +241,23 @@ export default function App() {
       setVideoFiles([]);
       setState('upload');
     }
+  };
+
+  const handleHistoryUpdate = (item: SavedAnalysis) => {
+      if (item.versions && item.versions.length > 0) {
+          const latestResult = item.versions[0].result;
+          setPreviousAnalysis(latestResult);
+          setCurrentAnalysisId(item.id);
+          setUserType(item.userType);
+          
+          setBillFiles([]);
+          setHomeFiles([]);
+          setVideoFiles([]);
+          setProcessedHomeImages([]); 
+          setErrorMsg(null);
+          
+          setState('upload');
+      }
   };
 
   const handleEPCUpload = async (file: File) => {
@@ -558,6 +592,7 @@ export default function App() {
           <HistoryView 
             items={historyItems}
             onSelect={handleRestoreFromHistory}
+            onUpdate={handleHistoryUpdate}
             onRefresh={loadHistory}
             onBack={handleNewAnalysis}
           />

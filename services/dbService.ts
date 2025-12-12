@@ -162,3 +162,36 @@ export const deleteAnalysis = async (id: string): Promise<void> => {
     request.onerror = () => reject("Failed to delete record");
   });
 };
+
+export const deleteAnalysisVersion = async (analysisId: string, versionId: string): Promise<void> => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const getRequest = store.get(analysisId);
+
+    getRequest.onsuccess = () => {
+      const data = getRequest.result as SavedAnalysis;
+      if (!data) {
+        resolve(); // Record already gone
+        return;
+      }
+
+      // Filter out the specific version
+      const updatedVersions = data.versions.filter(v => v.versionId !== versionId);
+
+      if (updatedVersions.length === 0) {
+        // No versions left, delete the whole record
+        store.delete(analysisId);
+      } else {
+        // Update with remaining versions
+        data.versions = updatedVersions;
+        // Update timestamp to the timestamp of the new "latest" version
+        data.updatedAt = updatedVersions[0].timestamp;
+        store.put(data);
+      }
+      resolve();
+    };
+    getRequest.onerror = () => reject("Failed to delete version");
+  });
+};
