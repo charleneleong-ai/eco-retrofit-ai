@@ -7,6 +7,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Switching to Gemini 2.5 Flash for faster inference speeds while maintaining high multimodal capability
 const MODEL_NAME = 'gemini-2.5-flash';
+const IMAGE_MODEL_NAME = 'gemini-2.5-flash-image';
 
 // Verified Source Library - Single Source of Truth for the AI
 // UPDATED: Consolidated appliance links to active 'home-appliances' page to prevent 404s
@@ -45,6 +46,70 @@ CATEGORY: GENERAL & BENCHMARKS
 - EPC Certificate Search: "https://www.gov.uk/find-energy-certificate"
 - London Building Stock Model: "https://data.london.gov.uk/dataset/london-building-stock-model"
 `;
+
+export const generateRetrofitVisualization = async (
+  base64Image: string, 
+  retrofitType: string,
+  viewAngle: string = 'Front Isometric', // Default
+  detailLevel: string = 'Standard' // Standard or High
+): Promise<string> => {
+  const isHighDetail = detailLevel === 'High';
+  
+  // Custom logic for the "Plan" view to ensure it looks like a building plan
+  const isPlanView = viewAngle.includes('Plan');
+  
+  const prompt = `
+    You are an expert AI Architectural Visualizer. 
+    Task: Create a ${isHighDetail ? 'ultra-granular, high-fidelity' : 'standard'} 3D visualization of the house in this photo.
+    
+    Visualization Goal: Show the effect of: "${retrofitType}".
+    Target View Angle: ${viewAngle}.
+
+    Specific Rendering Instructions:
+    1. Base Geometry: Use the uploaded photo/frame to infer the 3D structure of the house.
+       - NOTE: The input might be a frame from a walkthrough video. Infer the likely full building shape if only part is visible.
+    2. Rotation/Angle:
+       - If 'Front Isometric': Standard 3/4 view.
+       - If 'Rotate Left': Rotate the building model ~45 degrees to the left.
+       - If 'Rotate Right': Rotate ~45 degrees right.
+       - If 'Top-Down Plan': Generate a **technical architectural 3D floor plan** view from directly above (cutaway view, no roof).
+         - Style: Blueprint aesthetics mixed with 3D photorealism.
+         - Details: Show internal layout inference, wall thickness, and a subtle 1x1m grid overlay (per sqm2) on the floor.
+         - Context: Isolate the building footprint.
+    3. Style:
+       - Background: Clean, white studio infinite cyclorama.
+       - Lighting: Soft, global illumination (ambient occlusion).
+       - ${isHighDetail ? 'Textures: Use PBR-like materials, show brick grain, window reflection, and granular roof tile details.' : 'Textures: Smooth, clean architectural model style.'}
+    4. Retrofit Integration:
+       - Ensure "${retrofitType}" is clearly visible and integrated.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: IMAGE_MODEL_NAME,
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+          { text: prompt }
+        ]
+      }
+    });
+
+    // Iterate to find the image part
+    if (response.candidates && response.candidates[0].content.parts) {
+       for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData && part.inlineData.data) {
+             return part.inlineData.data;
+          }
+       }
+    }
+    
+    throw new Error("No image generated");
+  } catch (error) {
+    console.error("Visualization Error:", error);
+    throw error;
+  }
+};
 
 export const extractEPCData = async (
   file: { mimeType: string; data: string; name?: string }
@@ -200,8 +265,7 @@ export const updateBenchmark = async (
 export const analyzeHomeData = async (
   billFiles: { mimeType: string; data: string; name?: string }[],
   homeImages: string[],
-  videoData: string | null,
-  videoMimeType: string | null,
+  videoFiles: { mimeType: string; data: string }[], // Updated to accept multiple videos
   userType: UserType,
   previousAnalysis?: AnalysisResult | null
 ): Promise<AnalysisResult> => {
@@ -218,7 +282,7 @@ export const analyzeHomeData = async (
 
   const prompt = `
     You are an expert Home Energy Auditor and Retrofit Planner. 
-    Analyze the provided energy bills (images/PDFs), home photos, and walkthrough video.
+    Analyze the provided energy bills (images/PDFs), home photos, and walkthrough videos.
     
     ${updateContext}
 
@@ -354,15 +418,15 @@ export const analyzeHomeData = async (
     });
   });
 
-  // Add Video
-  if (videoData && videoMimeType) {
+  // Add Videos (Updated to handle multiple)
+  videoFiles.forEach(video => {
     parts.push({
-      inlineData: {
-        mimeType: videoMimeType,
-        data: videoData
-      }
+        inlineData: {
+            mimeType: video.mimeType,
+            data: video.data
+        }
     });
-  }
+  });
 
   // Add Prompt
   parts.push({ text: prompt });
@@ -519,9 +583,9 @@ export const analyzeHomeData = async (
         });
       });
       
-      if (videoData) {
-        currentSources.push({ name: 'Walkthrough Video', type: 'video' });
-      }
+      videoFiles.forEach((v, i) => {
+        currentSources.push({ name: `Video ${i+1}`, type: 'video' });
+      });
       
       if (homeImages.length > 0) {
         homeImages.forEach((_, i) => {

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, AnalysisResult, UserType, SavedAnalysis } from './types';
 import { analyzeHomeData, extractEPCData } from './services/geminiService';
-import { fileToBase64 } from './utils';
+import { fileToBase64, extractFrameFromVideo } from './utils';
 import { saveAnalysis, getAllAnalyses, updateAnalysisSelection } from './services/dbService';
 import { MOCK_ANALYSIS_RESULT } from './services/mockData';
 import UploadZone from './components/UploadZone';
@@ -23,6 +23,9 @@ export default function App() {
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [restoredSelectedIndices, setRestoredSelectedIndices] = useState<number[] | undefined>(undefined);
   
+  // Store processed images (base64) to pass to visualizer
+  const [processedHomeImages, setProcessedHomeImages] = useState<string[]>([]);
+
   const [isUpdatingEPC, setIsUpdatingEPC] = useState(false); // New state for background EPC update
   const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini...');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export default function App() {
         messages.push("Scanning home photos for inefficiencies...");
       }
       if (videoFiles.length > 0) {
-        messages.push("Processing video walkthrough...");
+        messages.push("Processing video walkthroughs...");
       }
 
       // Always add the core analysis steps
@@ -105,16 +108,26 @@ export default function App() {
 
       const homeImages = await Promise.all(homeFiles.map(fileToBase64));
       
-      let videoData: string | null = null;
-      let videoMime: string | null = null;
+      // Video Processing: Extract frames & prepare raw data
+      const videoDataArray = await Promise.all(videoFiles.map(async (file) => ({
+          mimeType: file.type,
+          data: await fileToBase64(file)
+      })));
+
+      // Extract representative frames from videos to add to visualization pool
+      // This allows the 3D Plan generator to use video content
+      const videoFrames = await Promise.all(videoFiles.map(extractFrameFromVideo));
+      const validVideoFrames = videoFrames.filter(f => f.length > 0);
+      
+      // Combine photos + video frames for the visualizer
+      const allVisuals = [...homeImages, ...validVideoFrames];
+      setProcessedHomeImages(allVisuals);
       
       if (videoFiles.length > 0) {
-        setLoadingMsg('Uploading and processing video...');
-        videoData = await fileToBase64(videoFiles[0]);
-        videoMime = videoFiles[0].type;
+        setLoadingMsg('Analyzing video spatial data...');
       }
       
-      const result = await analyzeHomeData(billData, homeImages, videoData, videoMime, userType, previousAnalysis);
+      const result = await analyzeHomeData(billData, homeImages, videoDataArray, userType, previousAnalysis);
       
       // Save to local DB
       setLoadingMsg('Saving results locally...');
@@ -161,6 +174,7 @@ export default function App() {
       await loadHistory();
       
       setRestoredSelectedIndices(undefined);
+      setProcessedHomeImages([]); // No real images in demo
       setState('dashboard');
     }, 1500);
   };
@@ -246,6 +260,7 @@ export default function App() {
     setHomeFiles([]);
     setVideoFiles([]);
     setPreviousAnalysis(null);
+    setProcessedHomeImages([]); // Images from history likely not stored in full base64 in this simple version
     
     // Restore state
     setCurrentAnalysisId(item.id);
@@ -264,6 +279,7 @@ export default function App() {
         setBillFiles([]);
         setHomeFiles([]);
         setVideoFiles([]);
+        setProcessedHomeImages([]);
     }
   };
 
@@ -465,12 +481,12 @@ export default function App() {
                   onRemoveFile={(idx) => handleRemoveFile(setHomeFiles, idx)}
                 />
                 <UploadZone 
-                  label="Walkthrough Video" 
-                  description="A short clip walking through rooms (Max 20MB)"
+                  label="Walkthrough Videos" 
+                  description="Short clips walking through rooms"
                   accept="video/*"
                   icon="video"
                   files={videoFiles}
-                  onFilesSelected={(files) => setVideoFiles([files[0]])} // Limit to 1
+                  onFilesSelected={(files) => setVideoFiles(prev => [...prev, ...files])} 
                   onRemoveFile={(idx) => handleRemoveFile(setVideoFiles, idx)}
                 />
               </div>
@@ -527,6 +543,7 @@ export default function App() {
               isUpdatingEPC={isUpdatingEPC}
               initialSelectedIndices={restoredSelectedIndices}
               onSelectionChange={handleDashboardSelectionChange}
+              homeImages={processedHomeImages}
             />
             <ChatInterface analysisResult={analysisResult} />
           </>

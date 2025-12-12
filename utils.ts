@@ -15,6 +15,56 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+export const extractFrameFromVideo = (videoFile: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    try {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+        
+        // Create a URL for the video file
+        const fileURL = URL.createObjectURL(videoFile);
+        video.src = fileURL;
+
+        video.onloadedmetadata = () => {
+            // Seek to 1 second or 10% if short to avoid black starter frames
+            video.currentTime = Math.min(1, video.duration * 0.1);
+        };
+
+        video.onseeked = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                // Limit resolution for API efficiency
+                const scale = Math.min(1, 1024 / Math.max(video.videoWidth, video.videoHeight));
+                canvas.width = video.videoWidth * scale;
+                canvas.height = video.videoHeight * scale;
+                
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                    URL.revokeObjectURL(fileURL);
+                    resolve(base64);
+                } else {
+                    resolve(''); // Fallback
+                }
+            } catch (e) {
+                console.error("Frame capture error", e);
+                resolve('');
+            }
+        };
+
+        video.onerror = (e) => {
+            console.error("Video load error", e);
+            resolve('');
+        };
+    } catch (e) {
+        resolve('');
+    }
+  });
+};
+
 export const formatCurrency = (value: number, currency: string = '$') => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

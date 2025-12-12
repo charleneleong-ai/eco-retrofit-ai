@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { Upload, X, FileText, Image as ImageIcon, Video } from 'lucide-react';
 
@@ -69,7 +70,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
           ref={fileInputRef} 
           className="hidden" 
           accept={accept} 
-          multiple={icon !== 'video'} // Restrict video to single file usually, but simple here
+          multiple // Always allow multiple files
           onChange={handleFileInput}
         />
       </div>
