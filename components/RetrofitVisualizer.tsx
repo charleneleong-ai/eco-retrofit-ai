@@ -27,7 +27,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
   
   // 3D Controls State
   const [viewAngle, setViewAngle] = useState<ViewAngle>('Front Isometric');
-  const [detailLevel, setDetailLevel] = useState<DetailLevel>('Standard');
+  const [detailLevel, setDetailLevel] = useState<DetailLevel>('High'); // Default to High for Pro model quality
 
   if (!isOpen) return null;
 

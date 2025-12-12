@@ -3,11 +3,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult, UserType, SourceDoc, EPCRating, HomeProfile, ComparisonData } from '../types';
 import { generateDerivedUsageData } from '../utils';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 // Switching to Gemini 2.5 Flash for faster inference speeds while maintaining high multimodal capability
 const MODEL_NAME = 'gemini-2.5-flash';
 const IMAGE_MODEL_NAME = 'gemini-2.5-flash-image';
+const PRO_IMAGE_MODEL_NAME = 'gemini-3-pro-image-preview';
 
 // Verified Source Library - Single Source of Truth for the AI
 // UPDATED: Consolidated appliance links to active 'home-appliances' page to prevent 404s
@@ -51,62 +50,116 @@ export const generateRetrofitVisualization = async (
   base64Image: string, 
   retrofitType: string,
   viewAngle: string = 'Front Isometric', // Default
-  detailLevel: string = 'Standard' // Standard or High
+  detailLevel: string = 'Standard', // Standard or High
+  mode: 'retrofit' | 'structure' = 'retrofit', // New parameter for 3D model generation
+  style: 'Realistic' | 'Clay' | 'Blueprint' = 'Realistic' // New style parameter
 ): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const isHighDetail = detailLevel === 'High';
+  const isStructureMode = mode === 'structure';
   
-  // Custom logic for the "Plan" view to ensure it looks like a building plan
-  const isPlanView = viewAngle.includes('Plan');
-  
-  const prompt = `
-    You are an expert AI Architectural Visualizer. 
-    Task: Create a ${isHighDetail ? 'ultra-granular, high-fidelity' : 'standard'} 3D visualization of the house in this photo.
-    
-    Visualization Goal: Show the effect of: "${retrofitType}".
-    Target View Angle: ${viewAngle}.
+  let styleInstruction = '';
+  switch (style) {
+      case 'Clay':
+          styleInstruction = 'Render Style: "Clay Render". Pure white/light-grey matte material. Soft ambient occlusion shadows. No textures, just pure form and geometry. Clean, minimalist architectural model look. High contrast ambient occlusion.';
+          break;
+      case 'Blueprint':
+          styleInstruction = 'Render Style: "Architectural Blueprint 3D". Deep blue blueprint background with crisp white technical line work, or white background with distinct black outlines. Orthographic projection style. High precision lines.';
+          break;
+      case 'Realistic':
+      default:
+          styleInstruction = 'Render Style: Ultra-Photorealistic Architectural Visualization. 8K resolution, highly detailed textures, physically based rendering (PBR), ray-traced global illumination, soft shadows. Unreal Engine 5 Lumen quality. Focus on material accuracy (wood grain, fabric weave, glass reflections, metal sheen).';
+          break;
+  }
 
-    Specific Rendering Instructions:
-    1. Base Geometry: Use the uploaded photo/frame to infer the 3D structure of the house.
-       - NOTE: The input might be a frame from a walkthrough video. Infer the likely full building shape if only part is visible.
-    2. Rotation/Angle:
-       - If 'Front Isometric': Standard 3/4 view.
-       - If 'Rotate Left': Rotate the building model ~45 degrees to the left.
-       - If 'Rotate Right': Rotate ~45 degrees right.
-       - If 'Top-Down Plan': Generate a **technical architectural 3D floor plan** view from directly above (cutaway view, no roof).
-         - Style: Blueprint aesthetics mixed with 3D photorealism.
-         - Details: Show internal layout inference, wall thickness, and a subtle 1x1m grid overlay (per sqm2) on the floor.
-         - Context: Isolate the building footprint.
-    3. Style:
-       - Background: Clean, white studio infinite cyclorama.
-       - Lighting: Soft, global illumination (ambient occlusion).
-       - ${isHighDetail ? 'Textures: Use PBR-like materials, show brick grain, window reflection, and granular roof tile details.' : 'Textures: Smooth, clean architectural model style.'}
-    4. Retrofit Integration:
-       - Ensure "${retrofitType}" is clearly visible and integrated.
-  `;
+  let prompt = '';
+
+  if (isStructureMode) {
+      prompt = `
+        You are a world-class AI Architect and 3D Visualizer.
+        Task: Generate a masterpiece quality, high-fidelity ${viewAngle} 3D architectural cutaway of the room/building shown in the input image.
+        
+        Input Context: The image is a frame from a walkthrough video or a photo of a home. Use it to accurately infer the structure, room layout, and furniture placement.
+
+        Specific Instructions:
+        1. View Angle: ${viewAngle}.
+           - If 'Top-Down Plan': Generate a clean, orthogonal 3D floor plan cutaway (section cut at 1.5m height) with realistic furniture and floor textures.
+           - If 'Front Isometric' or Rotated: Generate a sharp 3D isometric cutaway view.
+        2. ${styleInstruction}
+        3. Geometry & Layout:
+           - Accurately represent the inferred layout of the visible rooms (Living Room, Kitchen, etc.).
+           - CRITICAL: Show realistic wall thickness (solid walls, not thin planes).
+           - Exclude the ceiling/roof to show the interior (Cutaway view).
+           - Furniture should be highly detailed models, not blocky approximations.
+        4. Lighting: Soft studio lighting, global illumination. No dark shadows.
+        5. Background: Clean, solid neutral background (white or light grey).
+      `;
+  } else {
+      prompt = `
+        You are a world-class AI Architectural Visualizer. 
+        Task: Create a ${isHighDetail ? 'photorealistic, 8K resolution' : 'standard'} 3D visualization of the house in this photo.
+        
+        Visualization Goal: Show the effect of: "${retrofitType}".
+        Target View Angle: ${viewAngle}.
+        
+        Specific Rendering Instructions:
+        1. Base Geometry: Use the uploaded photo/frame to infer the 3D structure with high precision.
+        2. ${styleInstruction}
+        3. Retrofit Integration:
+           - Ensure "${retrofitType}" is clearly visible and integrated into the design with realistic materials.
+           - If 'Insulation': Show a detailed cross-section or cutaway revealing the insulation layers (e.g. pink fiberglass, rigid foam) in the wall/roof.
+           - If 'Heat Pump': Show the unit installed on the exterior/interior with accurate piping and branding details.
+      `;
+  }
+
+  // Internal function to attempt generation with specific model and config
+  const attemptGeneration = async (model: string, useAdvancedConfig: boolean): Promise<string> => {
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: {
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+            { text: prompt }
+          ]
+        },
+        config: useAdvancedConfig ? {
+            imageConfig: {
+                aspectRatio: "4:3", 
+                // Removed imageSize: "2K" to prevent 500 Internal Errors during image-to-image tasks
+            }
+        } : undefined
+      });
+
+      if (response.candidates && response.candidates[0].content.parts) {
+         for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData && part.inlineData.data) {
+               return part.inlineData.data;
+            }
+         }
+      }
+      throw new Error(`No image generated by model ${model}`);
+  };
 
   try {
-    const response = await ai.models.generateContent({
-      model: IMAGE_MODEL_NAME,
-      contents: {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
-          { text: prompt }
-        ]
-      }
-    });
-
-    // Iterate to find the image part
-    if (response.candidates && response.candidates[0].content.parts) {
-       for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData && part.inlineData.data) {
-             return part.inlineData.data;
-          }
-       }
+    // 1. Try with the preferred model (Pro if high detail, else Flash)
+    const primaryModel = (isStructureMode || isHighDetail) ? PRO_IMAGE_MODEL_NAME : IMAGE_MODEL_NAME;
+    return await attemptGeneration(primaryModel, primaryModel === PRO_IMAGE_MODEL_NAME);
+  } catch (error) {
+    console.warn("Primary visualization attempt failed:", error);
+    
+    // 2. Fallback Mechanism
+    // If the Pro model failed (e.g., 500 Internal Error), try the standard Flash model
+    if ((isStructureMode || isHighDetail)) {
+        try {
+            console.log("Attempting fallback to Gemini 2.5 Flash Image...");
+            return await attemptGeneration(IMAGE_MODEL_NAME, false);
+        } catch (fallbackError) {
+            console.error("Fallback visualization also failed:", fallbackError);
+            throw fallbackError;
+        }
     }
     
-    throw new Error("No image generated");
-  } catch (error) {
-    console.error("Visualization Error:", error);
+    // If it was not the Pro model or both failed
     throw error;
   }
 };
@@ -114,6 +167,7 @@ export const generateRetrofitVisualization = async (
 export const extractEPCData = async (
   file: { mimeType: string; data: string; name?: string }
 ): Promise<EPCRating> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const parts: any[] = [{
     inlineData: {
       mimeType: file.mimeType,
@@ -190,6 +244,7 @@ export const updateBenchmark = async (
     currentAnalysis: AnalysisResult, 
     newProfile: HomeProfile
 ): Promise<ComparisonData> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const prompt = `
         You are a Home Energy Intelligence Engine.
@@ -269,14 +324,17 @@ export const analyzeHomeData = async (
   userType: UserType,
   previousAnalysis?: AnalysisResult | null
 ): Promise<AnalysisResult> => {
-  
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const parts: any[] = [];
 
   const updateContext = previousAnalysis 
     ? `IMPORTANT: This is an UPDATE to an existing analysis. 
        Previous Summary: ${previousAnalysis.summary}
        Previous Address: ${previousAnalysis.address || 'Unknown'}
-       Merge the new files/info with the previous findings. If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.
+       Previous Customer Name: ${previousAnalysis.customerName || 'Unknown'}
+       Merge the new files/info with the previous findings. 
+       PRESERVE the customer name "${previousAnalysis.customerName}" unless the new files clearly indicate a different name (e.g. a bill with a different name).
+       If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.
        IF THE NEW FILE IS AN OFFICIAL EPC CERTIFICATE, EXTRACT THE EXACT RATINGS AND SET 'isEstimate' TO FALSE. ALSO EXTRACT THE FULL BREAKDOWN TABLE AND METADATA.`
     : '';
 
@@ -291,6 +349,8 @@ export const analyzeHomeData = async (
       : 'HOMEOWNER. Focus on: Property value increase, ROI of deep retrofits, heat pumps, solar PV, wall/loft insulation, and window replacement.'}
 
     1. Extract Customer Details: Look for the customer Name and Property Address on the bills.
+       - IF UPDATING: Use the previous name unless you see a new one.
+       - IF NEW: If no name is found, default to 'Valued Customer'.
     2. Analyze Usage & Costs: 
        - Identify patterns (e.g., winter peaks). 
        - GENERATE A FULL 12-MONTH TIMELINE of monthly totals ('monthlyUsage' array) representing the last year (or a typical year) based on the data provided. 
@@ -618,6 +678,7 @@ export const chatWithCopilot = async (
   newMessage: string,
   contextData: AnalysisResult
 ): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const context = `
     Context from analysis:

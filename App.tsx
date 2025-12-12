@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppState, AnalysisResult, UserType, SavedAnalysis } from './types';
+import { AppState, AnalysisResult, UserType, SavedAnalysis, AnalysisVersion } from './types';
 import { analyzeHomeData, extractEPCData } from './services/geminiService';
-import { fileToBase64, extractFrameFromVideo } from './utils';
+import { fileToBase64, extractFrameFromVideo, generateDemoFloorPlan } from './utils';
 import { saveAnalysis, getAllAnalyses, updateAnalysisSelection } from './services/dbService';
 import { MOCK_ANALYSIS_RESULT } from './services/mockData';
 import UploadZone from './components/UploadZone';
@@ -25,6 +25,9 @@ export default function App() {
   
   // Store processed images (base64) to pass to visualizer
   const [processedHomeImages, setProcessedHomeImages] = useState<string[]>([]);
+  
+  // Flag for Demo Mode to enable 3D View
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   const [isUpdatingEPC, setIsUpdatingEPC] = useState(false); // New state for background EPC update
   const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini...');
@@ -61,9 +64,6 @@ export default function App() {
         "Finalizing your eco-retrofit plan..."
       );
 
-      // If we have no specific file messages (e.g. demo load where files state is empty but we want a generic start),
-      // we ensure there's at least one message or it starts with the core steps.
-      
       let i = 0;
       setLoadingMsg(messages[0]);
       interval = window.setInterval(() => {
@@ -93,33 +93,54 @@ export default function App() {
       return;
     }
 
+    // MANDATORY: Check if user has selected a paid API key via AI Studio overlay
+    // This is required for advanced models like Gemini 1.5 Pro / 2.5 Flash / Veo etc.
+    if ((window as any).aistudio && !(await (window as any).aistudio.hasSelectedApiKey())) {
+        try {
+            await (window as any).aistudio.openSelectKey();
+            // We assume success and proceed immediately to avoid race conditions as per documentation
+        } catch (e) {
+            console.error("Failed to open key selector", e);
+            setErrorMsg("Please select a paid API key project to continue with high-fidelity analysis.");
+            return;
+        }
+    }
+
     setState('analyzing');
     setErrorMsg(null);
-    // Initial message handled by useEffect
+    setIsDemoMode(false);
 
     try {
       // Convert inputs to Base64 with MimeType
       const billData = await Promise.all(billFiles.map(async (file) => ({
         name: file.name,
         type: file.type,
-        mimeType: file.type, // keeping mimeType for service compatibility
+        mimeType: file.type || 'application/pdf',
         data: await fileToBase64(file)
       })));
 
       const homeImages = await Promise.all(homeFiles.map(fileToBase64));
       
-      // Video Processing: Extract frames & prepare raw data
-      const videoDataArray = await Promise.all(videoFiles.map(async (file) => ({
-          mimeType: file.type,
-          data: await fileToBase64(file)
-      })));
+      // Process videos safely
+      const videoDataArray = await Promise.all(videoFiles.map(async (file) => {
+          try {
+              const data = await fileToBase64(file);
+              return {
+                  mimeType: file.type || 'video/mp4', // Fallback
+                  data: data
+              };
+          } catch (e) {
+              console.warn(`Failed to process video ${file.name}`, e);
+              return null;
+          }
+      }));
+      // Filter out failed videos
+      const validVideoData = videoDataArray.filter((v): v is { mimeType: string; data: string } => v !== null);
 
-      // Extract representative frames from videos to add to visualization pool
-      // This allows the 3D Plan generator to use video content
+      // Extract representative frames
       const videoFrames = await Promise.all(videoFiles.map(extractFrameFromVideo));
       const validVideoFrames = videoFrames.filter(f => f.length > 0);
       
-      // Combine photos + video frames for the visualizer
       const allVisuals = [...homeImages, ...validVideoFrames];
       setProcessedHomeImages(allVisuals);
       
@@ -127,18 +148,31 @@ export default function App() {
         setLoadingMsg('Analyzing video spatial data...');
       }
       
-      const result = await analyzeHomeData(billData, homeImages, videoDataArray, userType, previousAnalysis);
+      const result = await analyzeHomeData(billData, homeImages, validVideoData, userType, previousAnalysis);
       
-      // Save to local DB
       setLoadingMsg('Saving results locally...');
-      const savedId = await saveAnalysis(userType, result, billData.map(b => ({ name: b.name, type: b.type, data: b.data })));
+      
+      // Aggregate all file data for saving
+      const allInputFiles = [
+          ...billData.map(b => ({ name: b.name, type: b.type, data: b.data })),
+          ...homeImages.map((data, i) => ({ name: `Photo ${i+1}`, type: 'image/jpeg', data })),
+          ...validVideoData.map((v, i) => ({ name: `Video ${i+1}`, type: v.mimeType, data: v.data }))
+      ];
+
+      // Save logic: Pass currentAnalysisId if it exists to append version
+      const savedId = await saveAnalysis(
+          userType, 
+          result, 
+          allInputFiles,
+          currentAnalysisId // Pass existing ID to trigger version update
+      );
+      
       setCurrentAnalysisId(savedId);
-      await loadHistory(); // Refresh history count
+      await loadHistory();
 
       setAnalysisResult(result);
-      // Reset previous analysis context after successful update
       setPreviousAnalysis(null);
-      setRestoredSelectedIndices(undefined); // Reset selections for fresh analysis
+      setRestoredSelectedIndices(undefined); 
       
       setState('dashboard');
       
@@ -151,30 +185,33 @@ export default function App() {
 
   const handleLoadDemo = async () => {
     setState('analyzing');
-    // Note: useEffect will overwrite this with the first generic message shortly, 
-    // but usually "Identifying insulation gaps..." is a fine start for a demo.
     setLoadingMsg("Loading sample data...");
     
+    // For demo, we now use the interactive Three.js view instead of generating a static 2D canvas plan
+    setIsDemoMode(true);
+    
+    // We still generate one static frame for the Visualizer context (e.g. for "Visualize Retrofit" modal)
+    // This keeps the "Visualizer" feature functional even in demo mode
+    const mockFrame = await generateDemoFloorPlan(); 
+    setProcessedHomeImages([mockFrame]);
+
     setTimeout(async () => {
       setAnalysisResult(MOCK_ANALYSIS_RESULT);
-      // Demo data is specifically for a renter scenario
       setUserType('renter');
       
-      // Generate mock file entries based on the result so history count matches
-      // This ensures the "Bills Saved" count in history reflects the 11 mock bills
+      // Mock files for history purposes (empty data to save space)
       const mockFiles = MOCK_ANALYSIS_RESULT.sourceDocuments?.map(doc => ({
         name: doc.name,
         type: doc.type === 'pdf' ? 'application/pdf' : doc.type === 'image' ? 'image/jpeg' : 'video/mp4',
-        data: '' // No actual data for mock files to save space
+        data: '' 
       })) || [];
 
-      // Save demo to history so it persists
+      // Save demo
       const savedId = await saveAnalysis('renter', MOCK_ANALYSIS_RESULT, mockFiles);
       setCurrentAnalysisId(savedId);
       await loadHistory();
       
       setRestoredSelectedIndices(undefined);
-      setProcessedHomeImages([]); // No real images in demo
       setState('dashboard');
     }, 1500);
   };
@@ -182,7 +219,6 @@ export default function App() {
   const handleUpdateAnalysis = () => {
     if (analysisResult) {
       setPreviousAnalysis(analysisResult);
-      // Clear files so user knows they are uploading NEW ones
       setBillFiles([]);
       setHomeFiles([]);
       setVideoFiles([]);
@@ -197,19 +233,15 @@ export default function App() {
     try {
         const base64Data = await fileToBase64(file);
         
-        // Use specialized lightweight function for speed
-        // This targets only the EPC data fields instead of running full analysis
         const epcData = await extractEPCData({
             name: file.name, 
             mimeType: file.type, 
             data: base64Data 
         });
 
-        // Manually merge into existing result
         const updatedResult: AnalysisResult = {
             ...analysisResult,
             epc: epcData,
-            // Add to source docs
             sourceDocuments: [
                 ...(analysisResult.sourceDocuments || []),
                 { 
@@ -220,27 +252,22 @@ export default function App() {
             ]
         };
 
-        // Update state
         setAnalysisResult(updatedResult);
         
-        // Save the update
         if (currentAnalysisId) {
-             // We treat the EPC as a generic file record for saving purposes
              const epcFileRecord = { 
                  name: file.name, 
                  type: file.type, 
                  data: base64Data 
              };
              
-             // We save the NEW result but append the file to whatever files we tracked before
-             // Note: In a real app we'd probably fetch existing files from DB to append to, 
-             // or just save this new state as the latest version.
-             const savedId = await saveAnalysis(
+             // Pass currentAnalysisId to append this EPC update as a new version
+             await saveAnalysis(
                  userType, 
                  updatedResult, 
-                 [epcFileRecord] // Saving just this file record associated with this result version
+                 [epcFileRecord],
+                 currentAnalysisId
              );
-             setCurrentAnalysisId(savedId);
              await loadHistory();
         }
 
@@ -252,19 +279,25 @@ export default function App() {
     }
   };
 
-  const handleRestoreFromHistory = (item: SavedAnalysis) => {
+  const handleRestoreFromHistory = (item: SavedAnalysis, version?: AnalysisVersion) => {
+    // If no specific version requested, use the latest (index 0)
+    const targetVersion = version || item.versions[0];
+    
+    if (!targetVersion) return;
+
     setUserType(item.userType);
-    setAnalysisResult(item.result);
-    // We don't restore the file inputs UI, just the results view
+    setAnalysisResult(targetVersion.result);
+    
     setBillFiles([]);
     setHomeFiles([]);
     setVideoFiles([]);
     setPreviousAnalysis(null);
-    setProcessedHomeImages([]); // Images from history likely not stored in full base64 in this simple version
+    setProcessedHomeImages([]); 
+    setIsDemoMode(false); // Reset demo mode on restore (unless we store it in history, but for now simple)
     
-    // Restore state
+    // Set ID to the Parent ID so updates continue the history chain
     setCurrentAnalysisId(item.id);
-    setRestoredSelectedIndices(item.selectedRecommendationIndices);
+    setRestoredSelectedIndices(targetVersion.selectedRecommendationIndices);
     
     setState('dashboard');
   };
@@ -280,16 +313,15 @@ export default function App() {
         setHomeFiles([]);
         setVideoFiles([]);
         setProcessedHomeImages([]);
+        setIsDemoMode(false);
     }
   };
 
   const handleDashboardSelectionChange = (indices: number[]) => {
     if (currentAnalysisId) {
-      // 1. Auto-save changes to DB
       updateAnalysisSelection(currentAnalysisId, indices).catch(err => {
         console.error("Failed to auto-save selection state", err);
       });
-      // 2. Update local state so selections persist if user navigates away and comes back
       setRestoredSelectedIndices(indices);
     }
   };
@@ -310,7 +342,6 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-3">
-             {/* "Start New" shortcut when inside a plan */}
              {analysisResult && (
                <button 
                  onClick={handleNewAnalysis}
@@ -386,7 +417,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Show loaded sources */}
                   {previousAnalysis.sourceDocuments && previousAnalysis.sourceDocuments.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-emerald-200/60">
                       <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2 flex items-center gap-1">
@@ -426,7 +456,6 @@ export default function App() {
               </div>
             )}
 
-            {/* User Type Toggle */}
             <div className="flex flex-col items-center mb-10">
               <p className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wide">I am a</p>
               <div className="bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm inline-flex gap-1">
@@ -544,6 +573,7 @@ export default function App() {
               initialSelectedIndices={restoredSelectedIndices}
               onSelectionChange={handleDashboardSelectionChange}
               homeImages={processedHomeImages}
+              isDemoMode={isDemoMode}
             />
             <ChatInterface analysisResult={analysisResult} />
           </>

@@ -1,9 +1,9 @@
 
-import { SavedAnalysis, AnalysisResult, UserType, FileData } from '../types';
+import { SavedAnalysis, AnalysisResult, UserType, FileData, AnalysisVersion } from '../types';
 
 const DB_NAME = 'EcoRetrofitDB';
 const STORE_NAME = 'analyses';
-const DB_VERSION = 1;
+const DB_VERSION = 3; // Bump version for schema change
 
 export const initDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -22,6 +22,11 @@ export const initDB = (): Promise<IDBDatabase> => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      } else {
+        // Simple migration strategy: Delete old store if structure is incompatible
+        // In prod, we'd iterate and transform.
+        db.deleteObjectStore(STORE_NAME);
+        db.createObjectStore(STORE_NAME, { keyPath: 'id' });
       }
     };
   });
@@ -30,35 +35,76 @@ export const initDB = (): Promise<IDBDatabase> => {
 export const saveAnalysis = async (
   userType: UserType,
   result: AnalysisResult,
-  billFiles: FileData[],
+  inputFiles: FileData[],
+  existingId?: string | null, // Pass ID to update existing
   selectedRecommendationIndices?: number[]
 ): Promise<string> => {
   const db = await initDB();
-  
-  // Create a unique ID
-  const id = crypto.randomUUID();
   
   // Default to all selected if not specified
   const defaultIndices = selectedRecommendationIndices 
     ? selectedRecommendationIndices 
     : result.recommendations.map((_, i) => i);
 
-  const record: SavedAnalysis = {
-    id,
-    date: Date.now(),
-    userType,
-    result,
-    billFiles,
-    selectedRecommendationIndices: defaultIndices
+  // Create the new version object
+  const newVersion: AnalysisVersion = {
+      versionId: crypto.randomUUID(),
+      timestamp: Date.now(),
+      result,
+      inputFiles: inputFiles,
+      selectedRecommendationIndices: defaultIndices,
+      note: existingId ? 'Updated Analysis' : 'Initial Audit'
   };
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.add(record);
 
-    request.onsuccess = () => resolve(id);
-    request.onerror = () => reject("Failed to save analysis");
+    if (existingId) {
+        // --- UPDATE EXISTING ---
+        const getRequest = store.get(existingId);
+        
+        getRequest.onsuccess = () => {
+            const data = getRequest.result as SavedAnalysis;
+            
+            if (data && data.versions) {
+                // Determine note based on previous version count
+                newVersion.note = `v${data.versions.length + 1}`;
+                
+                // Add new version to start of array (Newest First)
+                data.versions.unshift(newVersion);
+                data.updatedAt = Date.now();
+                
+                const updateRequest = store.put(data);
+                updateRequest.onsuccess = () => resolve(existingId);
+                updateRequest.onerror = () => reject("Failed to update analysis version");
+            } else {
+                // Fallback if ID provided but not found or legacy format
+                createNewRecord();
+            }
+        };
+        getRequest.onerror = () => createNewRecord();
+
+    } else {
+        // --- CREATE NEW ---
+        createNewRecord();
+    }
+
+    function createNewRecord() {
+        const id = crypto.randomUUID();
+        newVersion.note = 'v1';
+        const record: SavedAnalysis = {
+            id,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            userType,
+            versions: [newVersion]
+        };
+
+        const request = store.add(record);
+        request.onsuccess = () => resolve(id);
+        request.onerror = () => reject("Failed to save new analysis");
+    }
   });
 };
 
@@ -71,12 +117,12 @@ export const updateAnalysisSelection = async (id: string, selectedIndices: numbe
 
     getRequest.onsuccess = () => {
       const data = getRequest.result as SavedAnalysis;
-      if (data) {
-        data.selectedRecommendationIndices = selectedIndices;
+      if (data && data.versions && data.versions.length > 0) {
+        // Update the LATEST version's selection preference
+        data.versions[0].selectedRecommendationIndices = selectedIndices;
         store.put(data);
         resolve();
       } else {
-        // Silently fail if ID not found (e.g. demo data not in DB yet)
         resolve(); 
       }
     };
@@ -93,9 +139,12 @@ export const getAllAnalyses = async (): Promise<SavedAnalysis[]> => {
     const request = store.getAll();
 
     request.onsuccess = () => {
-      // Sort by date descending
-      const results = (request.result as SavedAnalysis[]).sort((a, b) => b.date - a.date);
-      resolve(results);
+      // Sort by updatedAt descending
+      const results = (request.result as SavedAnalysis[]).sort((a, b) => b.updatedAt - a.updatedAt);
+      
+      // Filter out invalid records (e.g. from old schema versions if any remain)
+      const validResults = results.filter(r => r.versions && Array.isArray(r.versions));
+      resolve(validResults);
     };
     request.onerror = () => reject("Failed to fetch history");
   });
