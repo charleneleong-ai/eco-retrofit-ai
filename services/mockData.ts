@@ -79,7 +79,10 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
     { name: 'OVO_Bill_12Jul25_11Aug25.pdf', type: 'pdf', date: 'Aug 2025', url: '#' },
     { name: 'OVO_Bill_12Aug25_11Sep25.pdf', type: 'pdf', date: 'Sep 2025', url: '#' },
     { name: 'OVO_Bill_12Sep25_11Oct25.pdf', type: 'pdf', date: 'Oct 2025', url: '#' },
-    { name: 'OVO_Bill_12Oct25_11Nov25.pdf', type: 'pdf', date: 'Nov 2025', url: '#' }
+    { name: 'OVO_Bill_12Oct25_11Nov25.pdf', type: 'pdf', date: 'Nov 2025', url: '#' },
+    { name: 'walkthrough_part1.mp4', type: 'video', date: 'Dec 2025', url: '#' },
+    { name: 'walkthrough_part2.mp4', type: 'video', date: 'Dec 2025', url: '#' },
+    { name: 'walkthrough_part3.mp4', type: 'video', date: 'Dec 2025', url: '#' }
   ],
   homeProfile: {
     propertyType: "Flat",

@@ -276,7 +276,10 @@ export const analyzeHomeData = async (
     ? `IMPORTANT: This is an UPDATE to an existing analysis. 
        Previous Summary: ${previousAnalysis.summary}
        Previous Address: ${previousAnalysis.address || 'Unknown'}
-       Merge the new files/info with the previous findings. If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.
+       Previous Customer Name: ${previousAnalysis.customerName || 'Unknown'}
+       Merge the new files/info with the previous findings. 
+       PRESERVE the customer name "${previousAnalysis.customerName}" unless the new files clearly indicate a different name (e.g. a bill with a different name).
+       If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.
        IF THE NEW FILE IS AN OFFICIAL EPC CERTIFICATE, EXTRACT THE EXACT RATINGS AND SET 'isEstimate' TO FALSE. ALSO EXTRACT THE FULL BREAKDOWN TABLE AND METADATA.`
     : '';
 
@@ -291,6 +294,8 @@ export const analyzeHomeData = async (
       : 'HOMEOWNER. Focus on: Property value increase, ROI of deep retrofits, heat pumps, solar PV, wall/loft insulation, and window replacement.'}
 
     1. Extract Customer Details: Look for the customer Name and Property Address on the bills.
+       - IF UPDATING: Use the previous name unless you see a new one.
+       - IF NEW: If no name is found, default to 'Valued Customer'.
     2. Analyze Usage & Costs: 
        - Identify patterns (e.g., winter peaks). 
        - GENERATE A FULL 12-MONTH TIMELINE of monthly totals ('monthlyUsage' array) representing the last year (or a typical year) based on the data provided. 

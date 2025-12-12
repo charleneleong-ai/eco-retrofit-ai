@@ -1,23 +1,24 @@
 
 import React, { useState } from 'react';
-import { SavedAnalysis } from '../types';
+import { SavedAnalysis, AnalysisVersion, SourceDoc } from '../types';
 import { deleteAnalysis } from '../services/dbService';
 import { parseSavingsValue } from '../utils';
-import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin } from 'lucide-react';
+import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin, Layers, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface HistoryViewProps {
   items: SavedAnalysis[];
-  onSelect: (item: SavedAnalysis) => void;
+  onSelect: (item: SavedAnalysis, version?: AnalysisVersion) => void;
   onRefresh: () => void;
   onBack: () => void;
 }
 
 const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, onBack }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this report? This cannot be undone.')) {
+    if (confirm('Are you sure you want to delete this report history? This cannot be undone.')) {
       setDeletingId(id);
       try {
         await deleteAnalysis(id);
@@ -30,14 +31,40 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
     }
   };
 
+  const toggleExpand = (e: React.MouseEvent, id: string) => {
+     e.stopPropagation();
+     setExpandedId(expandedId === id ? null : id);
+  }
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
     });
+  };
+
+  const formatTime = (timestamp: number) => {
+      return new Date(timestamp).toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit'
+      });
+  }
+
+  const getFileSummary = (docs: SourceDoc[] | undefined) => {
+      if (!docs || docs.length === 0) return "0 files processed";
+      
+      const bills = docs.filter(d => d.type === 'pdf').length;
+      const videos = docs.filter(d => d.type === 'video').length;
+      const images = docs.filter(d => d.type === 'image').length;
+      
+      const parts = [];
+      if (bills > 0) parts.push(`${bills} Bill${bills !== 1 ? 's' : ''}`);
+      if (videos > 0) parts.push(`${videos} Video${videos !== 1 ? 's' : ''}`);
+      if (images > 0) parts.push(`${images} Photo${images !== 1 ? 's' : ''}`);
+      
+      if (parts.length === 0) return `${docs.length} files processed`;
+      return parts.join(', ') + ' processed';
   };
 
   if (items.length === 0) {
@@ -57,114 +84,179 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onRefresh, o
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">Analysis History</h2>
-          <p className="text-slate-500 mt-1">Your saved retrofit plans and bills</p>
+          <p className="text-slate-500 mt-1">Your saved retrofit plans and versions</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
         {items.map((item) => {
-          // Calculate annual savings logic:
-          // 1. If we have recommendations AND specific user selections, sum those specific ones.
-          // 2. If we have recommendations but NO specific selections (legacy/default), sum ALL recommendations.
-          // 3. Fallback to monthly difference if no recommendations exist.
+          // Use the latest version for the main card display
+          const latestVersion = item.versions[0];
+          if (!latestVersion) return null;
+
+          const result = latestVersion.result;
+          const versionCount = item.versions.length;
           
           let annualSavings = 0;
           let selectedCount = 0;
-          const totalCount = item.result.recommendations?.length || 0;
+          const totalCount = result.recommendations?.length || 0;
 
-          if (item.result.recommendations && item.result.recommendations.length > 0) {
-            const indicesToUse = item.selectedRecommendationIndices 
-              ? item.selectedRecommendationIndices 
-              : item.result.recommendations.map((_, i) => i); // Default to all if undefined
+          if (result.recommendations && result.recommendations.length > 0) {
+            const indicesToUse = latestVersion.selectedRecommendationIndices 
+              ? latestVersion.selectedRecommendationIndices 
+              : result.recommendations.map((_, i) => i); 
             
             selectedCount = indicesToUse.length;
 
-            annualSavings = item.result.recommendations.reduce((acc, rec, idx) => {
+            annualSavings = result.recommendations.reduce((acc, rec, idx) => {
               if (indicesToUse.includes(idx)) {
                 return acc + parseSavingsValue(rec.estimatedAnnualSavings);
               }
               return acc;
             }, 0);
           } else {
-             annualSavings = (item.result.currentMonthlyAvg - item.result.projectedMonthlyAvg) * 12;
+             annualSavings = (result.currentMonthlyAvg - result.projectedMonthlyAvg) * 12;
           }
 
           return (
-            <div 
-              key={item.id} 
-              onClick={() => onSelect(item)}
-              className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 hover:shadow-md hover:border-emerald-200 transition-all cursor-pointer group relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                <ArrowRight className="w-6 h-6 text-emerald-500" />
-              </div>
+            <div key={item.id} className="bg-white rounded-xl shadow-sm border border-slate-200 transition-all overflow-hidden group">
+                
+                {/* Main Card (Latest Version) */}
+                <div 
+                    onClick={() => onSelect(item, latestVersion)}
+                    className="p-6 cursor-pointer hover:bg-slate-50/50 relative flex flex-col md:flex-row md:items-center justify-between gap-6"
+                >
+                    <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        <ArrowRight className="w-6 h-6 text-emerald-500" />
+                    </div>
 
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                {/* Left: Info */}
-                <div className="space-y-3 flex-1 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide border flex items-center gap-1.5 ${
-                      item.userType === 'homeowner' 
-                        ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                        : 'bg-purple-50 text-purple-700 border-purple-200'
-                    }`}>
-                      {item.userType === 'homeowner' ? <Home className="w-3 h-3" /> : <Building className="w-3 h-3" />}
-                      {item.userType}
-                    </span>
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      {formatDate(item.date)}
-                    </span>
-                  </div>
-                  
-                  {/* Name and Address */}
-                  <div>
-                    <h3 className="font-bold text-lg text-slate-800 truncate">
-                      {item.result.customerName || 'Retrofit Analysis'}
-                    </h3>
-                    
-                    {item.result.address && (
-                      <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{item.result.address}</span>
-                      </p>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-sm text-slate-500 pt-1">
-                    <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 text-xs font-medium">
-                      <FileCheck className="w-3.5 h-3.5 text-slate-400" />
-                      {item.billFiles.length} Bills Saved
-                    </span>
-                  </div>
+                    {/* Left: Info */}
+                    <div className="space-y-3 flex-1 min-w-0">
+                        <div className="flex items-center gap-3">
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wide border flex items-center gap-1.5 ${
+                                item.userType === 'homeowner' 
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200' 
+                                    : 'bg-purple-50 text-purple-700 border-purple-200'
+                            }`}>
+                                {item.userType === 'homeowner' ? <Home className="w-3 h-3" /> : <Building className="w-3 h-3" />}
+                                {item.userType}
+                            </span>
+                            <span className="text-xs text-slate-400 flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {formatDate(item.updatedAt)}
+                            </span>
+                            {versionCount > 1 ? (
+                                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full border border-slate-200 flex items-center gap-1">
+                                    <Layers className="w-3 h-3" />
+                                    v{versionCount}
+                                </span>
+                            ) : (
+                                <span className="text-xs bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100 flex items-center gap-1">
+                                    v1
+                                </span>
+                            )}
+                        </div>
+                        
+                        <div>
+                            <h3 className="font-bold text-lg text-slate-800 truncate">
+                                {result.customerName || 'Retrofit Analysis'}
+                            </h3>
+                            
+                            {result.address && (
+                                <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-1 truncate">
+                                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span className="truncate">{result.address}</span>
+                                </p>
+                            )}
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm text-slate-500 pt-1">
+                            <span className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 text-xs font-medium truncate max-w-full">
+                                <FileCheck className="w-3.5 h-3.5 text-slate-400" />
+                                {getFileSummary(result.sourceDocuments)}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Right: Stats & Actions */}
+                    <div className="flex items-center gap-6 shrink-0">
+                        <div className="text-right">
+                            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Est. Annual Savings</p>
+                            <p className="text-2xl font-bold text-emerald-600">
+                                {result.currency}{Math.round(annualSavings).toLocaleString()}
+                            </p>
+                            {totalCount > 0 && (
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    Based on selected {selectedCount}/{totalCount} actions
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="w-px h-12 bg-slate-100 hidden md:block"></div>
+
+                        {versionCount > 1 && (
+                            <button
+                                onClick={(e) => toggleExpand(e, item.id)}
+                                className={`p-2 rounded-lg transition-colors border ${
+                                    expandedId === item.id 
+                                    ? 'bg-slate-100 text-slate-700 border-slate-300' 
+                                    : 'bg-white text-slate-400 border-slate-200 hover:text-slate-600 hover:border-slate-300'
+                                }`}
+                                title="View Version History"
+                            >
+                                {expandedId === item.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                            </button>
+                        )}
+
+                        <button 
+                            onClick={(e) => handleDelete(e, item.id)}
+                            disabled={deletingId === item.id}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
+                            title="Delete Report"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
 
-                {/* Right: Stats & Actions */}
-                <div className="flex items-center gap-6 shrink-0">
-                  <div className="text-right">
-                    <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Est. Annual Savings</p>
-                    <p className="text-2xl font-bold text-emerald-600">
-                      {item.result.currency}{Math.round(annualSavings).toLocaleString()}
-                    </p>
-                    {totalCount > 0 && (
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Based on selected {selectedCount}/{totalCount} actions
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="w-px h-12 bg-slate-100 hidden md:block"></div>
-
-                  <button 
-                    onClick={(e) => handleDelete(e, item.id)}
-                    disabled={deletingId === item.id}
-                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
-                    title="Delete Report"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+                {/* Version History Expanded List */}
+                {expandedId === item.id && (
+                    <div className="bg-slate-50 border-t border-slate-200 p-4 space-y-2 animate-fade-in">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wide px-2 mb-2">Version History</p>
+                        {item.versions.map((ver, idx) => {
+                            const isLatest = idx === 0;
+                            return (
+                                <div 
+                                   key={ver.versionId} 
+                                   onClick={() => onSelect(item, ver)}
+                                   className="flex items-center justify-between p-3 rounded-lg bg-white border border-slate-200 hover:border-emerald-300 hover:shadow-sm cursor-pointer transition-all"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                                            isLatest ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                        }`}>
+                                            v{versionCount - idx}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                                {formatDate(ver.timestamp)}
+                                                {isLatest && <span className="text-[10px] bg-emerald-600 text-white px-1.5 rounded-sm">LATEST</span>}
+                                            </p>
+                                            <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                                                <Clock className="w-3 h-3" /> {formatTime(ver.timestamp)}
+                                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                                {getFileSummary(ver.result.sourceDocuments)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <ArrowRight className="w-4 h-4 text-slate-300" />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
           );
         })}
