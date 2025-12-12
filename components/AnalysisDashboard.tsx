@@ -812,7 +812,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-1.5 shrink-0">
                                             {factor.label}
                                         </span>
-                                        <div className="text-[10px] px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-right border border-slate-200/50 shadow-sm">
+                                        <div className="text-[10px] px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border border-slate-200/50 shadow-sm">
                                             {factor.variance}
                                         </div>
                                     </div>
@@ -886,7 +886,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                 key={idx} 
                 id={`rec-${idx}`}
                 className={`bg-white rounded-2xl p-4 shadow-sm border transition-all flex flex-col group cursor-pointer relative ${
-                    isSelected ? 'border-emerald-200 ring-1 ring-emerald-50' : 'border-slate-200 opacity-70 grayscale-[0.5] hover:opacity-100 hover:grayscale-0'
+                    isSelected ? 'border-emerald-200 ring-1 ring-emerald-50' : 'border-slate-200 opacity-70 grayscale-[0.5] hover:opacity-100'
                 }`}
                 onClick={() => toggleRec(idx)}
               >

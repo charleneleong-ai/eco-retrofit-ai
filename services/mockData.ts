@@ -101,10 +101,10 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
     description: "Your home consumes 15% more energy than similar sized flats in London N5 [5]. The discrepancy is largely due to higher-than-average heating costs in winter months.",
     neighborhoodName: "Highbury, London (N5)",
     factors: [
-        { label: "Build Type", userValue: "Victorian Conversion", localAvg: "Victorian/Edwardian", variance: "Match" },
-        { label: "Size", userValue: "1 Bed", localAvg: "1-2 Bed", variance: "Slightly Smaller" },
-        { label: "Occupancy", userValue: "1 Adult", localAvg: "1.8 Adults", variance: "Lower" },
-        { label: "Heating", userValue: "Gas Central", localAvg: "Gas Central", variance: "Match" }
+        { label: "Build Type", userValue: "Victorian Conversion", localAvg: "Victorian/Edwardian", variance: "Matches typical Highbury conservation stock." },
+        { label: "Size", userValue: "1 Bed", localAvg: "1-2 Bed", variance: "Compact footprint uses 15% less heat." },
+        { label: "Occupancy", userValue: "1 Adult", localAvg: "1.8 Adults", variance: "Lowers hot water demand significantly." },
+        { label: "Heating", userValue: "Gas Central", localAvg: "Gas Central", variance: "Standard system, upgrade to Heat Pump recommended." }
     ]
   },
   dataSources: [
