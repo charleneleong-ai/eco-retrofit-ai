@@ -111,23 +111,13 @@ export interface FileData {
   data: string; // Base64
 }
 
-// NEW: A snapshot of a specific analysis state
-export interface AnalysisVersion {
-  versionId: string;
-  timestamp: number;
-  result: AnalysisResult;
-  inputFiles: FileData[]; // Files associated with this specific run (renamed from billFiles to be generic)
-  selectedRecommendationIndices?: number[];
-  note?: string; // e.g. "Initial Audit", "Added Video Walkthrough"
-}
-
-// UPDATED: Container for history
 export interface SavedAnalysis {
-  id: string; // Persistent ID across versions
-  createdAt: number;
-  updatedAt: number;
+  id: string;
+  date: number;
   userType: UserType;
-  versions: AnalysisVersion[]; // Array of versions, newest first
+  result: AnalysisResult;
+  billFiles: FileData[];
+  selectedRecommendationIndices?: number[];
 }
 
 export interface FileWithPreview {
