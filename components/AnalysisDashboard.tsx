@@ -8,7 +8,7 @@ import HomeProfileModal from './HomeProfileModal';
 import RetrofitVisualizer from './RetrofitVisualizer';
 import Demo3DView from './Demo3DView'; // Import the new 3D view
 import { updateBenchmark, generateRetrofitVisualization } from '../services/geminiService';
-import { parseSavingsValue, generateDemoFloorPlan } from '../utils'; // Import generateDemoFloorPlan
+import { parseSavingsValue } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
 import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer, Layers, Map as MapIcon, Building2, Pencil, Leaf, Sparkles, Satellite, Plus, Minus, Box, RotateCcw, RotateCw, Grid, MoveVertical, ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -45,24 +45,10 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('satellite');
   const [zoomLevel, setZoomLevel] = useState<number>(20);
   
-  // Embedded Plan Gen State
-  const [planImage, setPlanImage] = useState<string | null>(null);
-  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  
-  // 3D View Controls (Legacy Canvas)
-  const [planAngle, setPlanAngle] = useState<'Top-Down Plan' | 'Top-Down Plan (Rotated 90)' | 'Top-Down Plan (Rotated 180)'>('Top-Down Plan');
-
   // Update local data if props change (e.g. parent re-analyzes)
   useEffect(() => {
      setData(initialData);
   }, [initialData]);
-
-  // Auto-generate plan when switching to Plan view (only if NOT demo mode)
-  useEffect(() => {
-    if (mapView === 'plan' && !planImage && !isGeneratingPlan && homeImages.length > 0 && !isDemoMode) {
-        generatePlanView('Top-Down Plan');
-    }
-  }, [mapView, planImage, isGeneratingPlan, homeImages, isDemoMode]);
 
   // --- State for Interactive Features ---
   const [selectedRecs, setSelectedRecs] = useState<Set<number>>(new Set());
@@ -110,36 +96,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       if (type !== 'plan') {
          // Reset zoom for maps
          setZoomLevel(type === 'satellite' ? 20 : 19);
-      }
-  };
-  
-  const generatePlanView = async (angle: typeof planAngle = 'Top-Down Plan') => {
-      if (isDemoMode) return; 
-
-      if (homeImages.length === 0) return;
-      setIsGeneratingPlan(true);
-      setPlanAngle(angle);
-      
-      try {
-          // Use the first image as base for plan inference
-          const result = await generateRetrofitVisualization(
-              homeImages[0],
-              "Architectural Floor Plan Analysis",
-              angle,
-              "High" // Force high detail to trigger Pro model
-          );
-          setPlanImage(result);
-      } catch (e) {
-          console.error("Failed to generate plan", e);
-      } finally {
-          setIsGeneratingPlan(false);
-      }
-  };
-
-  const rotatePlan = (direction: 'left' | 'right') => {
-      if (!isDemoMode) {
-          const newAngle = direction === 'left' ? 'Top-Down Plan (Rotated 90)' : 'Top-Down Plan (Rotated 180)';
-          generatePlanView(newAngle);
       }
   };
 
@@ -685,79 +641,11 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                 {mapView === 'plan' && (
                     <div className="absolute inset-0 bg-white flex flex-col items-center justify-center">
                         
-                        {/* Demo 3D View (Three.js) */}
-                        {isDemoMode ? (
-                            <Demo3DView />
-                        ) : (
-                            // Legacy Canvas / Image Generation
-                            <>
-                                {/* Grid Background */}
-                                <div className="absolute inset-0 z-0 opacity-[0.05]" style={{ 
-                                  backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)',
-                                  backgroundSize: '40px 40px'
-                                }}></div>
-
-                                {/* Loading / Generating State */}
-                                {(isGeneratingPlan || (homeImages.length > 0 && !planImage)) && (
-                                     <div className="z-10 flex flex-col items-center justify-center bg-white/80 p-6 rounded-xl border border-indigo-100 backdrop-blur-sm shadow-sm animate-fade-in">
-                                        <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-3"></div>
-                                        <p className="text-indigo-800 font-bold text-sm">Rendering 3D Plan...</p>
-                                        <p className="text-xs text-indigo-600/70">Using Nano Banana Pro Architectural Model</p>
-                                    </div>
-                                )}
-
-                                {/* Empty State */}
-                                {!planImage && !isGeneratingPlan && homeImages.length === 0 && (
-                                    <div className="z-10 text-center max-w-xs animate-fade-in-up">
-                                        <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-3 border border-amber-100">
-                                           <ImageIcon className="w-8 h-8 text-amber-500" />
-                                        </div>
-                                        <h4 className="font-bold text-slate-800 mb-1">No Photos Available</h4>
-                                        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-                                            Upload home photos to enable 3D Plan generation.
-                                        </p>
-                                    </div>
-                                )}
-
-                                {planImage && !isGeneratingPlan && (
-                                    <div className="absolute inset-0 z-10 p-2 md:p-4 flex items-center justify-center animate-fade-in">
-                                        <img 
-                                            src={`data:image/jpeg;base64,${planImage}`} 
-                                            alt="Generated 3D Plan" 
-                                            className="max-h-full max-w-full object-contain rounded-lg shadow-sm" 
-                                        />
-                                        
-                                        {/* Embedded 3D Control Toolbar */}
-                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur-sm border border-slate-200 shadow-lg rounded-xl p-1.5 flex items-center gap-1">
-                                            <button 
-                                                onClick={() => rotatePlan('left')}
-                                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-indigo-600 transition-colors"
-                                                title="Rotate Left"
-                                            >
-                                                <RotateCcw className="w-4 h-4" />
-                                            </button>
-                                            
-                                            <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-2">3D View</span>
-                                            <div className="w-px h-6 bg-slate-200 mx-1"></div>
-                                            
-                                            <button 
-                                                onClick={() => rotatePlan('right')}
-                                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-indigo-600 transition-colors"
-                                                title="Rotate Right"
-                                            >
-                                                <RotateCw className="w-4 h-4" />
-                                            </button>
-                                        </div>
-
-                                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-2 py-1 rounded border border-slate-200 text-[10px] font-bold text-indigo-800 shadow-sm flex items-center gap-1.5">
-                                            <Sparkles className="w-3 h-3 text-indigo-600" />
-                                            Nano Banana Pro Render
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                        {/* Always use the interactive 3D view for 'plan' mode, 
+                            passing the analysis data so it can reset/update based on the new report. 
+                            This replaces the legacy canvas generation logic for a richer experience. */}
+                        <Demo3DView analysisData={data} isDemoMode={isDemoMode} />
+                        
                     </div>
                 )}
                 

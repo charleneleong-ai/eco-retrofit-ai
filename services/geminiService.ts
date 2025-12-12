@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { AnalysisResult, UserType, SourceDoc, EPCRating, HomeProfile, ComparisonData } from '../types';
+import { AnalysisResult, UserType, SourceDoc, EPCRating, HomeProfile, ComparisonData, UsageBreakdown } from '../types';
 import { generateDerivedUsageData } from '../utils';
 
 // Switching to Gemini 2.5 Flash for faster inference speeds while maintaining high multimodal capability
@@ -335,7 +335,7 @@ export const analyzeHomeData = async (
        Merge the new files/info with the previous findings. 
        PRESERVE the customer name "${previousAnalysis.customerName}" unless the new files clearly indicate a different name (e.g. a bill with a different name).
        If the new files are just more bills, refine the cost estimates. If they are new photos, refine the retrofit plan.
-       IF THE NEW FILE IS AN OFFICIAL EPC CERTIFICATE, EXTRACT THE EXACT RATINGS AND SET 'isEstimate' TO FALSE. ALSO EXTRACT THE FULL BREAKDOWN TABLE AND METADATA.`
+       IF THE NEW FILE IS AN OFFICIAL EPC CERTIFICATE, EXTRACT THE EXACT RATINGS AND SET 'isEstimate' to FALSE. ALSO EXTRACT THE FULL BREAKDOWN TABLE AND METADATA.`
     : '';
 
   const prompt = `
@@ -623,14 +623,31 @@ export const analyzeHomeData = async (
     if (response.text) {
       const rawResult = JSON.parse(response.text);
       
-      // Programmatically generate daily and weekly breakdowns from the monthly data
-      const usageBreakdown = generateDerivedUsageData(rawResult.monthlyUsage || []);
+      let usageBreakdown: UsageBreakdown;
+
+      // Check if we should preserve existing financial data
+      // Rule: If updating an existing analysis AND no new bills were uploaded, use previous data exactly.
+      const shouldPreserveFinancials = previousAnalysis && billFiles.length === 0 && previousAnalysis.usageBreakdown;
+
+      if (shouldPreserveFinancials) {
+          // Force use of previous breakdown structure (Daily, Weekly, Monthly)
+          // This prevents re-generation of daily variance and ensures identical charts
+          usageBreakdown = previousAnalysis.usageBreakdown!;
+          
+          // Overwrite top-level metrics in the new result to match the preserved breakdown
+          rawResult.currentMonthlyAvg = previousAnalysis.currentMonthlyAvg;
+          rawResult.projectedMonthlyAvg = previousAnalysis.projectedMonthlyAvg;
+          rawResult.currency = previousAnalysis.currency;
+      } else {
+          // Programmatically generate daily and weekly breakdowns from the fresh monthly data
+          usageBreakdown = generateDerivedUsageData(rawResult.monthlyUsage || []);
+      }
       
       const result: AnalysisResult = {
         ...rawResult,
-        usageBreakdown // Inject the generated granular data
+        usageBreakdown // Inject the granular data
       };
-      // Remove the temp property to match strict types if needed, though optional properties are fine.
+      // Remove the temp property
       delete (result as any).monthlyUsage;
       
       // Capture source documents using new type

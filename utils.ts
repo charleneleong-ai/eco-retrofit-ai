@@ -467,6 +467,12 @@ const estimateSplit = (totalMetric: UsageMetric): { elec: FuelMetric, gas: FuelM
     };
 };
 
+// Deterministic pseudo-random number generator
+const seededRandom = (seed: number) => {
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+};
+
 export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreakdown => {
   const daily: UsageMetric[] = [];
   const weekly: UsageMetric[] = [];
@@ -478,7 +484,7 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
   let dayCount = 0;
   let weekStartLabel = '';
 
-  monthlyData.forEach((m) => {
+  monthlyData.forEach((m, mIndex) => {
     const safeCost = typeof m.cost === 'number' && !isNaN(m.cost) ? m.cost : 0;
     const safeKwh = typeof m.kwh === 'number' && !isNaN(m.kwh) ? m.kwh : 0;
 
@@ -497,7 +503,10 @@ export const generateDerivedUsageData = (monthlyData: UsageMetric[]): UsageBreak
     const shortYear = yearStr.length === 4 ? yearStr.slice(2) : yearStr;
 
     for (let i = 1; i <= daysInMonth; i++) {
-      const variance = 0.7 + Math.random() * 0.6;
+      // Use seeded random for consistent daily variance
+      const seed = (mIndex + 1) * 100 + i;
+      const variance = 0.7 + seededRandom(seed) * 0.6;
+      
       const cost = dailyBaseCost * variance;
       const kwh = dailyBaseKwh * variance;
       
