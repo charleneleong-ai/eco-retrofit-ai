@@ -10,7 +10,7 @@ import Button from './components/Button';
 import AnalysisDashboard from './components/AnalysisDashboard';
 import ChatInterface from './components/ChatInterface';
 import HistoryView from './components/HistoryView';
-import { ArrowRight, Leaf, Home, Building, History as HistoryIcon, Plus, PlayCircle, FileText, ExternalLink } from 'lucide-react';
+import { ArrowRight, Leaf, Home, Building, History as HistoryIcon, Plus, PlayCircle, FileText, ExternalLink, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [state, setState] = useState<AppState>('upload');
@@ -31,7 +31,11 @@ export default function App() {
 
   const [isUpdatingEPC, setIsUpdatingEPC] = useState(false); // New state for background EPC update
   const [loadingMsg, setLoadingMsg] = useState('Initializing Gemini...');
+  
+  // Error handling
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+
   const [historyItems, setHistoryItems] = useState<SavedAnalysis[]>([]);
 
   // Load history count on mount
@@ -90,6 +94,7 @@ export default function App() {
   const handleAnalyze = async () => {
     if (billFiles.length === 0 && homeFiles.length === 0 && videoFiles.length === 0) {
       setErrorMsg("Please upload at least one file to start analysis.");
+      setShowErrorModal(true);
       return;
     }
 
@@ -102,12 +107,14 @@ export default function App() {
         } catch (e) {
             console.error("Failed to open key selector", e);
             setErrorMsg("Please select a paid API key project to continue with high-fidelity analysis.");
+            setShowErrorModal(true);
             return;
         }
     }
 
     setState('analyzing');
     setErrorMsg(null);
+    setShowErrorModal(false);
     setIsDemoMode(false);
 
     try {
@@ -148,7 +155,9 @@ export default function App() {
         setLoadingMsg('Analyzing video spatial data...');
       }
       
-      const result = await analyzeHomeData(billData, homeImages, validVideoData, userType, previousAnalysis);
+      // CRITICAL FIX: Pass 'allVisuals' (including video frames) as images, 
+      // but pass 'validVideoData' as metadata only, NOT as payload, to prevent Network Errors on large payloads.
+      const result = await analyzeHomeData(billData, allVisuals, validVideoData, userType, previousAnalysis);
       
       setLoadingMsg('Saving results locally...');
       
@@ -178,7 +187,9 @@ export default function App() {
       
     } catch (error: any) {
       console.error(error);
-      setErrorMsg(error.message || "An unexpected error occurred during analysis.");
+      const msg = error.message || "An unexpected error occurred during analysis.";
+      setErrorMsg(msg);
+      setShowErrorModal(true);
       setState('upload');
     }
   };
@@ -255,6 +266,7 @@ export default function App() {
           setVideoFiles([]);
           setProcessedHomeImages([]); 
           setErrorMsg(null);
+          setShowErrorModal(false);
           
           setState('upload');
       }
@@ -348,6 +360,7 @@ export default function App() {
         setVideoFiles([]);
         setProcessedHomeImages([]);
         setIsDemoMode(false);
+        setShowErrorModal(false);
     }
   };
 
@@ -365,6 +378,29 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center border border-slate-100 animate-fade-in-up">
+             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <AlertCircle className="w-8 h-8 text-red-600" />
+             </div>
+             <h3 className="text-xl font-bold text-slate-800 mb-2">Analysis Failed</h3>
+             <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+                {errorMsg && errorMsg.includes('NetworkError') 
+                   ? "The upload failed due to a network connection issue. This can happen with very large files or videos. Please try again with fewer or smaller files." 
+                   : (errorMsg || "We encountered an issue processing your data. Please check your connection and try again.")}
+             </p>
+             <button 
+                onClick={() => { setShowErrorModal(false); setErrorMsg(null); }}
+                className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-lg hover:shadow-xl"
+             >
+                Try Again
+             </button>
+          </div>
+        </div>
+      )}
+
       {/* Navbar */}
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -515,12 +551,6 @@ export default function App() {
                 </button>
               </div>
             </div>
-
-            {errorMsg && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm text-center">
-                {errorMsg}
-              </div>
-            )}
 
             <div className="space-y-6">
               <UploadZone 

@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SavedAnalysis, AnalysisVersion, SourceDoc } from '../types';
 import { deleteAnalysis, deleteAnalysisVersion } from '../services/dbService';
-import { parseSavingsValue } from '../utils';
+import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import { Trash2, Calendar, FileText, ArrowRight, Home, Building, FileCheck, MapPin, Layers, Clock, ChevronDown, ChevronUp, FilePlus, X } from 'lucide-react';
 
 interface HistoryViewProps {
@@ -16,16 +16,32 @@ interface HistoryViewProps {
 const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, onRefresh, onBack }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Local state for optimistic updates to hide deleted items immediately
+  const [localHiddenIds, setLocalHiddenIds] = useState<Set<string>>(new Set());
+
+  // Reset hidden IDs when items prop changes (refresh happened)
+  useEffect(() => {
+     setLocalHiddenIds(new Set());
+  }, [items]);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    // Prevent double clicks
+    if (deletingId === id) return;
+
     if (confirm('Are you sure you want to delete this report history? This cannot be undone.')) {
       setDeletingId(id);
       try {
         await deleteAnalysis(id);
+        
+        // Optimistic update: Hide it immediately
+        setLocalHiddenIds(prev => new Set(prev).add(id));
+        
+        // Trigger actual refresh
         onRefresh();
       } catch (error) {
         console.error("Failed to delete", error);
+        alert("Failed to delete item from database.");
       } finally {
         setDeletingId(null);
       }
@@ -40,6 +56,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
               onRefresh();
           } catch (error) {
               console.error("Failed to delete version", error);
+              alert("Failed to delete version.");
           }
       }
   };
@@ -85,7 +102,10 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
       return parts.join(', ') + ' processed';
   };
 
-  if (items.length === 0) {
+  // Filter out items that are hidden locally
+  const visibleItems = items.filter(item => !localHiddenIds.has(item.id));
+
+  if (visibleItems.length === 0) {
     return (
       <div className="max-w-2xl mx-auto text-center py-20 animate-fade-in">
         <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -107,7 +127,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {items.map((item) => {
+        {visibleItems.map((item) => {
           // Use the latest version for the main card display
           const latestVersion = item.versions[0];
           if (!latestVersion) return null;
@@ -135,6 +155,8 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
           } else {
              annualSavings = (result.currentMonthlyAvg - result.projectedMonthlyAvg) * 12;
           }
+
+          const currencySymbol = getCurrencySymbol(result.currency);
 
           return (
             <div key={item.id} className="bg-white rounded-xl shadow-sm border border-slate-200 transition-all overflow-hidden group">
@@ -201,7 +223,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
                         <div className="text-right hidden sm:block">
                             <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Est. Annual Savings</p>
                             <p className="text-2xl font-bold text-emerald-600">
-                                {result.currency}{Math.round(annualSavings).toLocaleString()}
+                                {currencySymbol}{Math.round(annualSavings).toLocaleString()}
                             </p>
                             {totalCount > 0 && (
                                 <p className="text-[10px] text-slate-400 mt-1">
@@ -238,7 +260,11 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
                             <button 
                                 onClick={(e) => handleDelete(e, item.id)}
                                 disabled={deletingId === item.id}
-                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                className={`p-2 rounded-lg transition-colors border border-transparent ${
+                                  deletingId === item.id 
+                                  ? 'bg-red-100 text-red-400 cursor-wait' 
+                                  : 'bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 hover:border-red-200 shadow-sm'
+                                }`}
                                 title="Delete Report"
                             >
                                 <Trash2 className="w-5 h-5" />
@@ -283,7 +309,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ items, onSelect, onUpdate, on
                                     <div className="flex items-center gap-2">
                                         <button 
                                             onClick={(e) => handleDeleteVersion(e, item.id, ver.versionId)}
-                                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover/version:opacity-100"
+                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                                             title="Delete this version"
                                         >
                                             <Trash2 className="w-4 h-4" />

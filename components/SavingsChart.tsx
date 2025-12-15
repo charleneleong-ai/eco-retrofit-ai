@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { getCurrencySymbol } from '../utils';
 
 interface SavingsChartProps {
   current: number;
@@ -21,6 +22,7 @@ const SavingsChart: React.FC<SavingsChartProps> = ({
   currentKwh,
   projectedKwh
 }) => {
+  const currencySymbol = getCurrencySymbol(currency);
   const data = [
     {
       name: label,
@@ -44,7 +46,7 @@ const SavingsChart: React.FC<SavingsChartProps> = ({
                       <span className="text-xs font-medium text-slate-500">Current</span>
                    </div>
                    <span className="text-sm font-bold text-slate-800">
-                      {currency}{payload[0].value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      {currencySymbol}{payload[0].value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                    </span>
                 </div>
                 {currentKwh && currentKwh > 0 && (
@@ -62,7 +64,7 @@ const SavingsChart: React.FC<SavingsChartProps> = ({
                       <span className="text-xs font-medium text-slate-500">Projected</span>
                    </div>
                    <span className="text-sm font-bold text-emerald-600">
-                      {currency}{payload[1].value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                      {currencySymbol}{payload[1].value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                    </span>
                 </div>
                 {projectedKwh && projectedKwh > 0 && (
@@ -76,7 +78,7 @@ const SavingsChart: React.FC<SavingsChartProps> = ({
              {savings && savings > 0 && (
                 <div className="pt-2 mt-1 border-t border-slate-100">
                    <p className="text-[10px] text-emerald-700 leading-snug">
-                      Save <strong>{currency}{savings.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</strong> with selected actions.
+                      Save <strong>{currencySymbol}{savings.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</strong> with selected actions.
                    </p>
                 </div>
              )}

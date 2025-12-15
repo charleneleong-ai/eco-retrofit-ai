@@ -3,19 +3,12 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Brush, ReferenceLine } from 'recharts';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, X, Zap, Flame, PieChart } from 'lucide-react';
 import { UsageBreakdown, UsageMetric } from '../types';
+import { getCurrencySymbol } from '../utils';
 
 interface UsageTrendsChartProps {
   data: UsageBreakdown;
   currency: string;
 }
-
-const getCurrencySymbol = (code: string) => {
-  const c = code ? code.toUpperCase() : '';
-  if (c === 'GBP' || c === 'POUND' || c === 'POUNDS') return '£';
-  if (c === 'USD' || c === 'DOLLAR' || c === 'DOLLARS') return '$';
-  if (c === 'EUR' || c === 'EURO' || c === 'EUROS') return '€';
-  return code || '$';
-};
 
 // Robust formatter for "Jan 25" or "1 Jan 25"
 const formatLabel = (label: string) => {

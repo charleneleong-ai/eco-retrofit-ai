@@ -8,7 +8,7 @@ import HomeProfileModal from './HomeProfileModal';
 import RetrofitVisualizer from './RetrofitVisualizer';
 import Demo3DView from './Demo3DView'; // Import the new 3D view
 import { updateBenchmark, generateRetrofitVisualization } from '../services/geminiService';
-import { parseSavingsValue } from '../utils';
+import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
 import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer, Layers, Map as MapIcon, Building2, Pencil, Leaf, Sparkles, Satellite, Plus, Minus, Box, RotateCcw, RotateCw, Grid, MoveVertical, ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -328,6 +328,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
   // Helper to access current profile safely
   const profile = data.homeProfile || defaultProfile;
+  const currencySymbol = getCurrencySymbol(data.currency);
 
   return (
     <div className="space-y-5 animate-fade-in pb-12">
@@ -364,12 +365,61 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 md:col-span-1 lg:col-span-1">
           <p className="text-sm font-medium text-slate-500">Projected Annual Savings</p>
           <div className="flex items-end gap-3 mt-1">
-            <h2 className="text-4xl font-bold text-emerald-600">{data.currency}{Math.round(calculatedAnnualSavings).toLocaleString()}</h2>
+            <h2 className="text-4xl font-bold text-emerald-600">{currencySymbol}{Math.round(calculatedAnnualSavings).toLocaleString()}</h2>
             <span className="text-emerald-600 font-medium mb-1 flex items-center">
               <ArrowDown className="w-4 h-4 mr-0.5" />{savingsPercent}%
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-2">Based on selected {selectedRecs.size}/{data.recommendations.length} actions</p>
+          
+          {/* Stats Grid: Investment & Payback */}
+          <div className="grid grid-cols-2 gap-4 mt-5">
+             <div className="relative group cursor-help">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  Investment
+                  <HelpCircle className="w-3 h-3 text-slate-300 transition-colors group-hover:text-emerald-500" />
+                </p>
+                
+                {/* Tooltip */}
+                <div className="absolute bottom-full left-0 mb-2 w-48 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0">
+                    <p className="font-bold text-emerald-400 mb-1">Upfront Cost</p>
+                    <p className="text-slate-300 leading-relaxed">Estimated total cost for materials and installation of selected measures.</p>
+                    <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-slate-800 rotate-45"></div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                   <div className="bg-slate-100 p-1 rounded-md">
+                      <Coins className="w-3.5 h-3.5 text-slate-500" />
+                   </div>
+                   <span className="font-bold text-slate-700 text-sm">
+                      {currencySymbol}{Math.round(calculatedInvestment).toLocaleString()}
+                   </span>
+                </div>
+             </div>
+             
+             <div className="relative group cursor-help">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                  Payback
+                  <HelpCircle className="w-3 h-3 text-slate-300 transition-colors group-hover:text-emerald-500" />
+                </p>
+
+                {/* Tooltip */}
+                <div className="absolute bottom-full left-0 mb-2 w-48 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0">
+                    <p className="font-bold text-emerald-400 mb-1">ROI Timeline</p>
+                    <p className="text-slate-300 leading-relaxed">Time required for energy bill savings to cover the initial investment cost.</p>
+                    <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-slate-800 rotate-45"></div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                   <div className="bg-slate-100 p-1 rounded-md">
+                      <Timer className="w-3.5 h-3.5 text-slate-500" />
+                   </div>
+                   <span className="font-bold text-slate-700 text-sm">
+                      {paybackPeriodYears <= 0 ? '-' : paybackPeriodYears < 1 ? '< 1 Year' : `${paybackPeriodYears.toFixed(1)} Years`}
+                   </span>
+                </div>
+             </div>
+          </div>
           
           <div className="mt-4 pt-4 border-t border-slate-100 relative group cursor-help">
             {/* Custom Interactive Tooltip / Hover Card */}
@@ -447,7 +497,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                     <SavingsChart 
                       current={displayCurrent} 
                       projected={displayProjected} 
-                      currency={data.currency} 
+                      currency={currencySymbol} 
                       label={`${viewMode} Cost`}
                       savings={displaySavings}
                       currentKwh={currentKwh}
@@ -459,11 +509,11 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                     <div className="flex justify-between items-center gap-4 border-t border-slate-100 pt-1">
                         <div>
                             <p className="text-xs text-slate-400 mb-0.5">Current Bill</p>
-                            <p className="text-lg font-bold text-slate-700">{data.currency}{displayCurrent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                            <p className="text-lg font-bold text-slate-700">{currencySymbol}{displayCurrent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                         </div>
                         <div className="text-right">
                             <p className="text-xs text-emerald-600/70 font-medium mb-0.5">Projected Bill</p>
-                            <p className="text-lg font-bold text-emerald-600">{data.currency}{displayProjected.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                            <p className="text-lg font-bold text-emerald-600">{currencySymbol}{displayProjected.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
                         </div>
                     </div>
                  </div>
@@ -510,7 +560,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                                 <div className="flex items-center justify-between">
                                    <span className="text-[10px] text-slate-400 truncate">{rec.category}</span>
                                    <span className={`text-[10px] font-bold ${isSelected ? 'text-emerald-600' : 'text-slate-400'}`}>
-                                      -{data.currency}{viewSaving.toFixed(2)}
+                                      -{currencySymbol}{viewSaving.toFixed(2)}
                                    </span>
                                 </div>
                              </div>
@@ -563,6 +613,17 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
              
              {/* Neighborhood Rank Badge */}
              <div className="relative group cursor-help z-20">
+                 {/* Tooltip Start */}
+                 <div className="absolute bottom-full right-0 mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0 text-left">
+                    <p className="font-bold text-emerald-400 mb-1">Efficiency Ranking</p>
+                    <p className="text-slate-300 leading-relaxed">
+                        Your home is more energy efficient than {data.comparison.efficiencyPercentile}% of similar properties in {data.comparison.neighborhoodName || 'your area'}.
+                    </p>
+                    {/* Arrow - adjusted for right alignment since the parent is right-aligned in header */}
+                    <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-slate-800 rotate-45"></div>
+                 </div>
+                 {/* Tooltip End */}
+
                  <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm transition-all group-hover:border-emerald-300 group-hover:shadow-md">
                      <div className="text-right">
                         <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide flex items-center justify-end gap-1 group-hover:text-emerald-600 transition-colors">
@@ -798,9 +859,18 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                      <span className={`px-2 py-1 rounded-md text-xs font-semibold border inline-flex items-center justify-center ${getImpactColor(rec.impact)}`}>
                         {rec.impact} Impact
                      </span>
-                     <span className={`px-2 py-1 rounded-md text-xs font-semibold border inline-flex items-center justify-center ${getCostBadgeColor(rec.estimatedCost)}`}>
-                        {getCostLabel(rec.estimatedCost)}
-                     </span>
+                     <div className="relative group/cost">
+                        <span className={`px-2 py-1 rounded-md text-xs font-semibold border inline-flex items-center justify-center cursor-help ${getCostBadgeColor(rec.estimatedCost)}`}>
+                            {getCostLabel(rec.estimatedCost)}
+                        </span>
+                        {/* Cost Tooltip */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-xl opacity-0 group-hover/cost:opacity-100 transition-all pointer-events-none z-50 text-center">
+                            <p className="font-bold text-emerald-400 mb-0.5">Est. Cost</p>
+                            <p>{rec.estimatedCost}</p>
+                            <p className="text-slate-400 mt-1 italic">Includes materials & install</p>
+                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
+                        </div>
+                     </div>
                 </div>
                 
                 <div className="text-slate-600 text-sm mb-2 min-h-[40px] flex-grow">

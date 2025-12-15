@@ -59,6 +59,7 @@ export const saveAnalysis = async (
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
+    let finalId = existingId || crypto.randomUUID();
 
     if (existingId) {
         // --- UPDATE EXISTING ---
@@ -75,23 +76,21 @@ export const saveAnalysis = async (
                 data.versions.unshift(newVersion);
                 data.updatedAt = Date.now();
                 
-                const updateRequest = store.put(data);
-                updateRequest.onsuccess = () => resolve(existingId);
-                updateRequest.onerror = () => reject("Failed to update analysis version");
+                store.put(data);
+                finalId = existingId;
             } else {
                 // Fallback if ID provided but not found or legacy format
-                createNewRecord();
+                createNewRecord(store, finalId);
             }
         };
-        getRequest.onerror = () => createNewRecord();
+        getRequest.onerror = () => createNewRecord(store, finalId);
 
     } else {
         // --- CREATE NEW ---
-        createNewRecord();
+        createNewRecord(store, finalId);
     }
 
-    function createNewRecord() {
-        const id = crypto.randomUUID();
+    function createNewRecord(store: IDBObjectStore, id: string) {
         newVersion.note = 'v1';
         const record: SavedAnalysis = {
             id,
@@ -100,11 +99,12 @@ export const saveAnalysis = async (
             userType,
             versions: [newVersion]
         };
-
-        const request = store.add(record);
-        request.onsuccess = () => resolve(id);
-        request.onerror = () => reject("Failed to save new analysis");
+        store.add(record);
     }
+
+    // Wait for transaction to complete to ensure data is persisted
+    transaction.oncomplete = () => resolve(finalId);
+    transaction.onerror = () => reject("Failed to save analysis");
   });
 };
 
@@ -121,12 +121,11 @@ export const updateAnalysisSelection = async (id: string, selectedIndices: numbe
         // Update the LATEST version's selection preference
         data.versions[0].selectedRecommendationIndices = selectedIndices;
         store.put(data);
-        resolve();
-      } else {
-        resolve(); 
       }
     };
-    getRequest.onerror = () => reject("Failed to get analysis");
+    
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject("Failed to update selection");
   });
 };
 
@@ -156,10 +155,12 @@ export const deleteAnalysis = async (id: string): Promise<void> => {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
+    store.delete(id);
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject("Failed to delete record");
+    // Use oncomplete to ensure the delete is committed before resolving
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = (e) => reject(`Failed to delete record: ${e}`);
+    transaction.onabort = (e) => reject(`Transaction aborted: ${e}`);
   });
 };
 
@@ -172,10 +173,7 @@ export const deleteAnalysisVersion = async (analysisId: string, versionId: strin
 
     getRequest.onsuccess = () => {
       const data = getRequest.result as SavedAnalysis;
-      if (!data) {
-        resolve(); // Record already gone
-        return;
-      }
+      if (!data) return; // Transaction will complete successfully with no action
 
       // Filter out the specific version
       const updatedVersions = data.versions.filter(v => v.versionId !== versionId);
@@ -187,11 +185,15 @@ export const deleteAnalysisVersion = async (analysisId: string, versionId: strin
         // Update with remaining versions
         data.versions = updatedVersions;
         // Update timestamp to the timestamp of the new "latest" version
-        data.updatedAt = updatedVersions[0].timestamp;
+        if (updatedVersions[0]) {
+            data.updatedAt = updatedVersions[0].timestamp;
+        }
         store.put(data);
       }
-      resolve();
     };
-    getRequest.onerror = () => reject("Failed to delete version");
+
+    // Wait for transaction to complete
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = (e) => reject(`Failed to delete version: ${e}`);
   });
 };

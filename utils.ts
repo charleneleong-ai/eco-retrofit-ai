@@ -1,6 +1,16 @@
 
 import { UsageMetric, UsageBreakdown, FuelMetric } from './types';
 
+export const getCurrencySymbol = (code: string) => {
+  const c = code ? code.toUpperCase().trim() : '';
+  if (c === 'GBP' || c === 'POUND' || c === 'POUNDS' || c === 'UKP') return '£';
+  if (c === 'USD' || c === 'DOLLAR' || c === 'DOLLARS' || c === 'US') return '$';
+  if (c === 'EUR' || c === 'EURO' || c === 'EUROS') return '€';
+  // Check if it's already a symbol
+  if (['£', '$', '€', '¥'].includes(c)) return c;
+  return code || '$';
+};
+
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -417,12 +427,13 @@ export const generateDemoFloorPlan = (rotationDeg: number = 45, tiltDeg: number 
 };
 
 export const formatCurrency = (value: number, currency: string = '$') => {
+  const symbol = getCurrencySymbol(currency);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: currency === '$' ? 'USD' : currency,
+    currency: symbol === '£' ? 'GBP' : symbol === '€' ? 'EUR' : 'USD', // Fallback for Intl if symbol passed
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(value).replace(/[A-Z]{3}/, symbol); // Ensure symbol is used if Intl defaults to code
 };
 
 export const parseSavingsValue = (savingsStr: string): number => {
