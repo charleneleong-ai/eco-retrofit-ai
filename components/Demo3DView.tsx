@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
-import { Layers, Grid, Maximize, Home, Monitor, Bed, Bath, Move, Rotate3d, CheckCircle2, Info } from 'lucide-react';
+import { Layers, Grid, Maximize, Home, Monitor, Bed, Bath, Move, Rotate3d, CheckCircle2, Info, Menu } from 'lucide-react';
 import { AnalysisResult } from '../types';
 
 // Helper for texture creation (kept for labels)
@@ -44,6 +44,15 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
   const [showGrid, setShowGrid] = useState(false);
   const [isHoveringLabel, setIsHoveringLabel] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  
+  // Refs to track state inside event listeners/animation loop without stale closures
+  const viewRef = useRef(view);
+  const isDraggingLogicRef = useRef(false);
+  
+  // Sync ref with state
+  useEffect(() => {
+      viewRef.current = view;
+  }, [view]);
   
   // THREE References
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -342,7 +351,8 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     
     // ORBIT CONTROLS LOGIC
     const onMouseDown = (e: MouseEvent) => {
-        setIsDragging(true);
+        isDraggingLogicRef.current = true;
+        setIsDragging(true); // Trigger UI update
         dragStart.current = { x: e.clientX, y: e.clientY };
     };
     
@@ -352,7 +362,7 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-        if (isDragging) {
+        if (isDraggingLogicRef.current) {
             const deltaX = e.clientX - dragStart.current.x;
             const deltaY = e.clientY - dragStart.current.y;
             dragStart.current = { x: e.clientX, y: e.clientY };
@@ -361,16 +371,21 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
             cameraState.current.phi -= deltaY * 0.005; 
             cameraState.current.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraState.current.phi));
             
-            if(view !== 'custom') setView('custom');
+            // Immediately switch logic to custom view if dragging
+            if(viewRef.current !== 'custom') {
+                viewRef.current = 'custom';
+                setView('custom');
+            }
         } else {
             raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current!);
             const intersects = raycasterRef.current.intersectObjects(labelSpritesRef.current);
             setIsHoveringLabel(intersects.length > 0);
-            mountRef.current!.style.cursor = intersects.length > 0 ? 'pointer' : (isDragging ? 'grabbing' : 'grab');
+            mountRef.current!.style.cursor = intersects.length > 0 ? 'pointer' : (isDraggingLogicRef.current ? 'grabbing' : 'grab');
         }
     };
     
     const onMouseUp = () => {
+        isDraggingLogicRef.current = false;
         setIsDragging(false);
     };
     
@@ -378,11 +393,14 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         e.preventDefault();
         cameraState.current.r += e.deltaY * 0.01;
         cameraState.current.r = Math.max(5, Math.min(50, cameraState.current.r));
-        if(view !== 'custom') setView('custom');
+        if(viewRef.current !== 'custom') {
+            viewRef.current = 'custom';
+            setView('custom');
+        }
     };
 
     const handleClick = () => {
-        if (!cameraRef.current || isDragging) return; 
+        if (!cameraRef.current || isDraggingLogicRef.current) return; 
         raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
         const intersects = raycasterRef.current.intersectObjects(labelSpritesRef.current);
         if (intersects.length > 0) {
@@ -404,8 +422,9 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         const cam = cameraRef.current;
         
         if (cam && rendererRef.current) {
-            
-            if (view === 'custom') {
+            const currentView = viewRef.current; // Use Ref to get latest view inside closure
+
+            if (currentView === 'custom') {
                 const { r, theta, phi, target } = cameraState.current;
                 const x = r * Math.sin(phi) * Math.sin(theta);
                 const y = r * Math.cos(phi);
@@ -423,7 +442,7 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
             }
 
             labelSpritesRef.current.forEach(sprite => {
-                const scale = (isHoveringLabel && !isDragging) ? 3.0 : 2.5;
+                const scale = (isHoveringLabel && !isDraggingLogicRef.current) ? 3.0 : 2.5;
                 sprite.scale.lerp(new THREE.Vector3(scale, scale * 0.24, 1), 0.1);
             });
 
@@ -487,28 +506,35 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     <div className="w-full h-full relative group bg-slate-50 overflow-hidden rounded-xl cursor-grab active:cursor-grabbing">
       <div className="w-full h-full" ref={mountRef} />
       
-      {/* UI Overlay */}
-      <div 
-        className={`absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 z-10 transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-      >
-          <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Detailed Analysis</h3>
-             <button onClick={() => setShowGrid(!showGrid)} className={`p-1.5 rounded-md transition-colors ${showGrid ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}>
-                <Grid className="w-3.5 h-3.5" />
-             </button>
+      {/* UI Overlay - Auto Hiding Hover Menu */}
+      <div className={`absolute top-4 left-4 z-30 flex flex-col items-start group/menu transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          
+          {/* Collapsed State Indicator (Menu Icon) */}
+          <div className="bg-white/80 backdrop-blur-md p-2 rounded-lg shadow-sm border border-slate-200 transition-all duration-300 group-hover/menu:opacity-0 group-hover/menu:pointer-events-none">
+             <Menu className="w-5 h-5 text-slate-600" />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-             <button onClick={() => setView('perspective')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'perspective' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                <Layers className="w-3 h-3" /> Overview
-             </button>
-             <button onClick={() => setView('top')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'top' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                <Maximize className="w-3 h-3" /> Top Plan
-             </button>
-             
-             <button onClick={() => setView('living')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'living' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Home className="w-3 h-3"/> Living</button>
-             <button onClick={() => setView('office')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'office' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor className="w-3 h-3"/> Office</button>
-             <button onClick={() => setView('bedroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bedroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bed className="w-3 h-3"/> Bed</button>
-             <button onClick={() => setView('bathroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bathroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bath className="w-3 h-3"/> Bath</button>
+
+          {/* Expanded Menu (Visible on Hover) */}
+          <div className="absolute top-0 left-0 w-64 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 transition-all duration-300 origin-top-left opacity-0 scale-95 pointer-events-none group-hover/menu:opacity-100 group-hover/menu:scale-100 group-hover/menu:pointer-events-auto">
+              <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Detailed Analysis</h3>
+                 <button onClick={() => setShowGrid(!showGrid)} className={`p-1.5 rounded-md transition-colors ${showGrid ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`} title="Toggle Grid">
+                    <Grid className="w-3.5 h-3.5" />
+                 </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                 <button onClick={() => setView('perspective')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'perspective' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    <Layers className="w-3 h-3" /> Overview
+                 </button>
+                 <button onClick={() => setView('top')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'top' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    <Maximize className="w-3 h-3" /> Top Plan
+                 </button>
+                 
+                 <button onClick={() => setView('living')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'living' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Home className="w-3 h-3"/> Living</button>
+                 <button onClick={() => setView('office')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'office' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor className="w-3 h-3"/> Office</button>
+                 <button onClick={() => setView('bedroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bedroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bed className="w-3 h-3"/> Bed</button>
+                 <button onClick={() => setView('bathroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bathroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bath className="w-3 h-3"/> Bath</button>
+              </div>
           </div>
       </div>
 
