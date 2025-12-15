@@ -10,7 +10,7 @@ import Demo3DView from './Demo3DView'; // Import the new 3D view
 import { updateBenchmark, generateRetrofitVisualization } from '../services/geminiService';
 import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer, Layers, Map as MapIcon, Building2, Pencil, Leaf, Sparkles, Satellite, Plus, Minus, Box, RotateCcw, RotateCw, Grid, MoveVertical, ZoomIn, ZoomOut } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer, Layers, Map as MapIcon, Building2, Pencil, Leaf, Sparkles, Satellite, Plus, Minus, Box, RotateCcw, RotateCw, Grid, MoveVertical, ZoomIn, ZoomOut, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -44,6 +44,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   // Map & Plan State
   const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('satellite');
   const [zoomLevel, setZoomLevel] = useState<number>(20);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   
   // Update local data if props change (e.g. parent re-analyzes)
   useEffect(() => {
@@ -611,56 +612,67 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                </div>
              </div>
              
-             {/* Neighborhood Rank Badge */}
-             <div className="relative group cursor-help z-20">
-                 {/* Tooltip Start */}
-                 <div className="absolute bottom-full right-0 mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0 text-left">
-                    <p className="font-bold text-emerald-400 mb-1">Efficiency Ranking</p>
-                    <p className="text-slate-300 leading-relaxed">
-                        Your home is more energy efficient than {data.comparison.efficiencyPercentile}% of similar properties in {data.comparison.neighborhoodName || 'your area'}.
-                    </p>
-                    {/* Arrow - adjusted for right alignment since the parent is right-aligned in header */}
-                    <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-slate-800 rotate-45"></div>
-                 </div>
-                 {/* Tooltip End */}
+             <div className="flex items-center gap-4">
+               {/* Neighborhood Rank Badge */}
+               <div className="relative group cursor-help z-20 hidden sm:block">
+                   {/* Tooltip Start */}
+                   <div className="absolute bottom-full right-0 mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0 text-left">
+                      <p className="font-bold text-emerald-400 mb-1">Efficiency Ranking</p>
+                      <p className="text-slate-300 leading-relaxed">
+                          Your home is more energy efficient than {data.comparison.efficiencyPercentile}% of similar properties in {data.comparison.neighborhoodName || 'your area'}.
+                      </p>
+                      {/* Arrow */}
+                      <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-slate-800 rotate-45"></div>
+                   </div>
+                   {/* Tooltip End */}
 
-                 <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm transition-all group-hover:border-emerald-300 group-hover:shadow-md">
-                     <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide flex items-center justify-end gap-1 group-hover:text-emerald-600 transition-colors">
-                            Local Rank 
-                            <HelpCircle className="w-3 h-3" />
-                        </p>
-                        <p className="text-sm font-bold text-slate-800 leading-none">Top {100 - data.comparison.efficiencyPercentile}%</p>
-                     </div>
-                     {/* Cleaner Donut Chart */}
-                     <div className="w-10 h-10 relative flex items-center justify-center">
-                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                            <path
-                                className="text-slate-100"
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                            />
-                            <path
-                                className="transition-all duration-1000 ease-out"
-                                strokeDasharray={`${data.comparison.efficiencyPercentile}, 100`}
-                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke={data.comparison.efficiencyPercentile >= 75 ? '#10b981' : data.comparison.efficiencyPercentile >= 40 ? '#fbbf24' : '#ef4444'}
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                            />
-                         </svg>
-                         <div className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${data.comparison.efficiencyPercentile >= 75 ? 'text-emerald-600' : data.comparison.efficiencyPercentile >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>
-                             {data.comparison.efficiencyPercentile}
-                         </div>
-                     </div>
-                 </div>
+                   <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm transition-all group-hover:border-emerald-300 group-hover:shadow-md">
+                       <div className="text-right">
+                          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide flex items-center justify-end gap-1 group-hover:text-emerald-600 transition-colors">
+                              Local Rank 
+                              <HelpCircle className="w-3 h-3" />
+                          </p>
+                          <p className="text-sm font-bold text-slate-800 leading-none">Top {100 - data.comparison.efficiencyPercentile}%</p>
+                       </div>
+                       {/* Cleaner Donut Chart */}
+                       <div className="w-10 h-10 relative flex items-center justify-center">
+                           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                              <path
+                                  className="text-slate-100"
+                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="3"
+                              />
+                              <path
+                                  className="transition-all duration-1000 ease-out"
+                                  strokeDasharray={`${data.comparison.efficiencyPercentile}, 100`}
+                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                  fill="none"
+                                  stroke={data.comparison.efficiencyPercentile >= 75 ? '#10b981' : data.comparison.efficiencyPercentile >= 40 ? '#fbbf24' : '#ef4444'}
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                              />
+                           </svg>
+                           <div className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${data.comparison.efficiencyPercentile >= 75 ? 'text-emerald-600' : data.comparison.efficiencyPercentile >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>
+                               {data.comparison.efficiencyPercentile}
+                           </div>
+                       </div>
+                   </div>
+               </div>
+
+               {/* Sidebar Toggle Button */}
+               <button 
+                  onClick={() => setIsSidebarVisible(!isSidebarVisible)}
+                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100"
+                  title={isSidebarVisible ? "Hide Sidebar" : "Show Sidebar"}
+               >
+                  {isSidebarVisible ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}
+               </button>
              </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_350px] gap-0">
+          <div className={`grid grid-cols-1 ${isSidebarVisible ? 'md:grid-cols-2 lg:grid-cols-[1fr_350px]' : 'lg:grid-cols-1'} gap-0 transition-all duration-300`}>
              {/* Left: Map or Plan Visualization (Main Content) */}
              <div className="relative bg-slate-100 min-h-[350px] md:h-full border-r border-slate-200 group overflow-hidden">
                 
@@ -736,62 +748,64 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                 </div>
              </div>
 
-             {/* Right: Comparison Matrix */}
-             <div className="p-6 bg-white flex flex-col h-full">
-                 <div className="flex items-center justify-between mb-4">
-                     <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-slate-500" />
-                        Comparison Factors
-                     </h4>
-                     <button 
-                        onClick={() => setIsProfileOpen(true)}
-                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded transition-colors"
-                     >
-                        <Pencil className="w-3 h-3" /> Edit Profile
-                     </button>
-                 </div>
-                 
-                 <div className="space-y-4 flex-1">
-                    {/* Dynamic Factors List */}
-                    {data.comparison.factors && data.comparison.factors.length > 0 ? (
-                        data.comparison.factors.map((factor, i) => (
-                            <div key={i} className="group py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg">
-                                <div className="flex flex-col gap-2">
-                                    <div className="flex justify-between items-start gap-4">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-1.5 shrink-0">
-                                            {factor.label}
-                                        </span>
-                                        <div className="text-[10px] px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border border-slate-200/50 shadow-sm">
-                                            {factor.variance}
+             {/* Right: Comparison Matrix (Conditionally Rendered via CSS/Grid) */}
+             {isSidebarVisible && (
+                 <div className="p-6 bg-white flex flex-col h-full animate-fade-in-left">
+                     <div className="flex items-center justify-between mb-4">
+                         <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            <Layers className="w-4 h-4 text-slate-500" />
+                            Comparison Factors
+                         </h4>
+                         <button 
+                            onClick={() => setIsProfileOpen(true)}
+                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded transition-colors"
+                         >
+                            <Pencil className="w-3 h-3" /> Edit Profile
+                         </button>
+                     </div>
+                     
+                     <div className="space-y-4 flex-1">
+                        {/* Dynamic Factors List */}
+                        {data.comparison.factors && data.comparison.factors.length > 0 ? (
+                            data.comparison.factors.map((factor, i) => (
+                                <div key={i} className="group py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg">
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-1.5 shrink-0">
+                                                {factor.label}
+                                            </span>
+                                            <div className="text-[10px] px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border border-slate-200/50 shadow-sm">
+                                                {factor.variance}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex items-center justify-between pl-1">
-                                        <div className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-slate-800"></div>
-                                            {factor.userValue}
-                                        </div>
-                                        <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">
-                                            vs {factor.localAvg}
+                                        <div className="flex items-center justify-between pl-1">
+                                            <div className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-800"></div>
+                                                {factor.userValue}
+                                            </div>
+                                            <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">
+                                                vs {factor.localAvg}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))
-                    ) : (
-                         <div className="text-center py-8 text-slate-400 text-sm">
-                             Detailed comparison data not available.
-                         </div>
-                    )}
-                 </div>
+                            ))
+                        ) : (
+                             <div className="text-center py-8 text-slate-400 text-sm">
+                                 Detailed comparison data not available.
+                             </div>
+                        )}
+                     </div>
 
-                 <div className="mt-6 bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 leading-relaxed">
-                    <p className="font-bold mb-1 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5" />
-                        AI Insight
-                    </p>
-                    {renderTextWithCitations(data.comparison.description)}
+                     <div className="mt-6 bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 leading-relaxed">
+                        <p className="font-bold mb-1 flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5" />
+                            AI Insight
+                        </p>
+                        {renderTextWithCitations(data.comparison.description)}
+                     </div>
                  </div>
-             </div>
+             )}
           </div>
       </div>
       

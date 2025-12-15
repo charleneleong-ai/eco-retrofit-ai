@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
-import { Layers, Grid, Maximize, Home, Monitor, Bed, Bath, MousePointerClick, Lamp, Move, Rotate3d, CheckCircle2, Info } from 'lucide-react';
+import { Layers, Grid, Maximize, Home, Monitor, Bed, Bath, Move, Rotate3d, CheckCircle2, Info } from 'lucide-react';
 import { AnalysisResult } from '../types';
 
 // Helper for texture creation (kept for labels)
@@ -488,7 +488,9 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
       <div className="w-full h-full" ref={mountRef} />
       
       {/* UI Overlay */}
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 z-10">
+      <div 
+        className={`absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 z-10 transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+      >
           <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Detailed Analysis</h3>
              <button onClick={() => setShowGrid(!showGrid)} className={`p-1.5 rounded-md transition-colors ${showGrid ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`}>
@@ -510,12 +512,12 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
           </div>
       </div>
 
-      <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-2 rounded-lg text-xs font-bold shadow-lg pointer-events-none flex flex-col gap-1 items-end">
+      <div className={`absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-2 rounded-lg text-xs font-bold shadow-lg pointer-events-none flex flex-col gap-1 items-end transition-opacity duration-300 ${isDragging ? 'opacity-0' : 'opacity-100'}`}>
          <div className="flex items-center gap-1.5"><Move className="w-3 h-3"/> Drag to Rotate</div>
          <div className="flex items-center gap-1.5 opacity-80"><Rotate3d className="w-3 h-3"/> Scroll to Zoom</div>
       </div>
 
-      <div className="absolute bottom-4 right-4 z-20">
+      <div className={`absolute bottom-4 right-4 z-20 transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <div className="group relative flex flex-col items-end">
             {/* Popup content */}
             <div className="absolute bottom-full mb-3 right-0 w-64 origin-bottom-right scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
