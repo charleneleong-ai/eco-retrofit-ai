@@ -616,13 +616,13 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                {/* Neighborhood Rank Badge */}
                <div className="relative group cursor-help z-20 hidden sm:block">
                    {/* Tooltip Start */}
-                   <div className="absolute bottom-full right-0 mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0 text-left">
+                   <div className="absolute top-full right-0 mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 text-left">
                       <p className="font-bold text-emerald-400 mb-1">Efficiency Ranking</p>
                       <p className="text-slate-300 leading-relaxed">
                           Your home is more energy efficient than {data.comparison.efficiencyPercentile}% of similar properties in {data.comparison.neighborhoodName || 'your area'}.
                       </p>
                       {/* Arrow */}
-                      <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-slate-800 rotate-45"></div>
+                      <div className="absolute -top-1.5 right-6 w-3 h-3 bg-slate-800 rotate-45"></div>
                    </div>
                    {/* Tooltip End */}
 
