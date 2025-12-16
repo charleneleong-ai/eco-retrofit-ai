@@ -10,9 +10,10 @@ interface EPCBadgeProps {
   isEstimate?: boolean;
   isLoading?: boolean;
   onFileSelected?: (file: File) => void;
+  className?: string;
 }
 
-const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, potential: propPotential, isEstimate: propEstimate, isLoading, onFileSelected }) => {
+const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, potential: propPotential, isEstimate: propEstimate, isLoading, onFileSelected, className = '' }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isDetailsExpanded, setIsDetailsExpanded] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +69,7 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
   const isMaxPotential = current === potential;
 
   return (
-    <div className="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden transition-all duration-300">
+    <div className={`w-full bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden transition-all duration-300 flex flex-col ${className}`}>
       {isLoading && (
          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-30 flex items-center justify-center flex-col gap-3 transition-opacity duration-300">
             <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
@@ -76,14 +77,14 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
          </div>
       )}
 
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between items-start mb-4 shrink-0">
          <div>
-            <h4 className="font-bold text-slate-800 text-base flex items-center gap-2">
+            <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
                 Energy Efficiency Rating
                 {isEstimate ? (
-                    <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md font-medium border border-amber-200">ESTIMATED</span>
+                    <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md font-bold border border-amber-200 tracking-wide">ESTIMATED</span>
                 ) : (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md font-medium border border-emerald-200 flex items-center gap-1">
+                    <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md font-bold border border-emerald-200 flex items-center gap-1 tracking-wide">
                         <CheckCircle2 className="w-3 h-3" /> VERIFIED
                     </span>
                 )}
@@ -101,11 +102,11 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
       </div>
       
       {/* Container with right padding to reserve space for the badges */}
-      <div className="space-y-1.5 relative pr-28"> 
+      <div className="space-y-1.5 relative pr-28 flex-1"> 
         {grades.map((item) => (
            <div 
              key={item.grade} 
-             className="flex items-center h-7 relative group cursor-help"
+             className="flex items-center h-8 relative group cursor-help"
              title={`${item.grade} Rating: ${item.desc}`} // Native tooltip
            >
               {/* Colored Bar */}
@@ -114,7 +115,7 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
                 style={{ 
                   width: item.width, 
                   backgroundColor: item.color,
-                  clipPath: 'polygon(0% 0%, calc(100% - 8px) 0%, 100% 50%, calc(100% - 8px) 100%, 0% 100%)' // Arrow shape
+                  clipPath: 'polygon(0% 0%, calc(100% - 10px) 0%, 100% 50%, calc(100% - 10px) 100%, 0% 100%)' // Arrow shape
                 }}
               >
                 <span>{item.grade}</span>
@@ -124,19 +125,19 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
               {/* Current Indicator Badge (Right Aligned) */}
               {current === item.grade && (
                  <div className="absolute right-0 flex items-center z-10 animate-fade-in-left">
-                    <div className="bg-slate-900 text-white text-xs font-bold h-7 px-3 min-w-[85px] flex items-center justify-center shadow-lg relative rounded-sm">
+                    <div className="bg-slate-900 text-white text-xs font-bold h-8 px-4 min-w-[90px] flex items-center justify-center shadow-lg relative rounded-sm">
                        Current
-                       <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[8px] border-r-slate-900"></div>
+                       <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent border-r-[10px] border-r-slate-900"></div>
                     </div>
                  </div>
               )}
 
               {/* Potential Indicator Badge (Right Aligned) */}
               {potential === item.grade && (
-                 <div className={`absolute right-0 flex items-center z-10 animate-fade-in-left ${potential === current ? 'mt-8' : ''}`}>
-                     <div className="bg-slate-400 text-white text-xs font-bold h-7 px-3 min-w-[85px] flex items-center justify-center shadow-sm relative rounded-sm">
+                 <div className={`absolute right-0 flex items-center z-10 animate-fade-in-left ${potential === current ? 'mt-10' : ''}`}>
+                     <div className="bg-slate-500 text-white text-xs font-bold h-8 px-4 min-w-[90px] flex items-center justify-center shadow-sm relative rounded-sm">
                         Potential
-                        <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[8px] border-r-slate-400"></div>
+                        <div className="absolute left-0 top-1/2 -translate-x-full -translate-y-1/2 w-0 h-0 border-y-[8px] border-y-transparent border-r-[10px] border-r-slate-500"></div>
                      </div>
                  </div>
               )}
@@ -144,18 +145,18 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
         ))}
         
         {/* Subtle vertical guide line for alignment */}
-        <div className="absolute top-0 bottom-0 right-[85px] w-px bg-slate-100 border-l border-dashed border-slate-200 -z-10"></div>
+        <div className="absolute top-0 bottom-0 right-[90px] w-px bg-slate-100 border-l border-dashed border-slate-200 -z-10"></div>
       </div>
       
       {isEstimate && (
-        <div className="mt-4 pt-3 border-t border-slate-100">
-           <div className="bg-slate-50 border border-slate-100 rounded-lg p-2.5 flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <div className="mt-6 pt-4 border-t border-slate-100 shrink-0">
+           <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col sm:flex-row gap-4 items-center justify-between">
               <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                  <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
                       Estimated Rating
                   </div>
-                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">
+                  <div className="text-xs text-slate-500 mt-1 leading-relaxed">
                      Derived from your bills. 
                      <a 
                        href="https://www.gov.uk/find-energy-certificate" 
@@ -163,7 +164,7 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
                        rel="noopener noreferrer"
                        className="text-emerald-600 hover:text-emerald-700 hover:underline ml-1 inline-flex items-center gap-0.5 font-medium transition-colors"
                      >
-                       Find your official EPC <ExternalLink className="w-2.5 h-2.5" />
+                       Find your official EPC <ExternalLink className="w-3 h-3" />
                      </a>
                   </div>
               </div>
@@ -174,7 +175,7 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    className={`relative w-40 h-14 shrink-0 border-2 border-dashed rounded-lg flex flex-col items-center justify-center cursor-pointer transition-all group ${
+                    className={`relative px-6 h-16 shrink-0 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all group min-w-[140px] ${
                         isDragging 
                         ? 'border-emerald-500 bg-emerald-50 scale-105' 
                         : 'border-slate-300 hover:border-emerald-400 hover:bg-slate-50 bg-white'
@@ -188,8 +189,8 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
                         onChange={handleFileChange}
                     />
                     <div className="flex flex-col items-center pointer-events-none">
-                        <Upload className={`w-4 h-4 mb-0.5 transition-colors ${isDragging ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-500'}`} />
-                        <span className={`text-[9px] font-bold transition-colors ${isDragging ? 'text-emerald-700' : 'text-slate-400 group-hover:text-emerald-600'}`}>
+                        <Upload className={`w-5 h-5 mb-1 transition-colors ${isDragging ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-500'}`} />
+                        <span className={`text-[10px] font-bold transition-colors ${isDragging ? 'text-emerald-700' : 'text-slate-500 group-hover:text-emerald-600'}`}>
                            Drop PDF or Click
                         </span>
                     </div>
@@ -200,7 +201,7 @@ const EPCBadge: React.FC<EPCBadgeProps> = ({ epcData, current: propCurrent, pote
       )}
       
       {!isEstimate && (
-        <div className="mt-4 pt-3 border-t border-slate-100">
+        <div className="mt-6 pt-4 border-t border-slate-100 shrink-0">
             <div className="flex items-center justify-between bg-emerald-50/50 rounded-lg p-2 border border-emerald-100 mb-3">
                 <p className="text-xs text-slate-500 flex items-center gap-1.5">
                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> 

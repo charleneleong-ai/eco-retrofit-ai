@@ -6,11 +6,11 @@ import UsageTrendsChart from './UsageTrendsChart';
 import EPCBadge from './EPCBadge';
 import HomeProfileModal from './HomeProfileModal';
 import RetrofitVisualizer from './RetrofitVisualizer';
-import Demo3DView from './Demo3DView'; // Import the new 3D view
-import { updateBenchmark, generateRetrofitVisualization } from '../services/geminiService';
+import Demo3DView from './Demo3DView';
+import { updateBenchmark } from '../services/geminiService';
 import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, Eye, LineChart, ArrowUp, HelpCircle, Coins, Timer, Layers, Map as MapIcon, Building2, Pencil, Leaf, Sparkles, Satellite, Plus, Minus, Box, RotateCcw, RotateCw, Grid, MoveVertical, ZoomIn, ZoomOut, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -19,8 +19,8 @@ interface DashboardProps {
   isUpdatingEPC?: boolean;
   initialSelectedIndices?: number[];
   onSelectionChange?: (indices: number[]) => void;
-  homeImages?: string[]; // New prop for visualization
-  isDemoMode?: boolean; // New prop to trigger 3D demo view
+  homeImages?: string[];
+  isDemoMode?: boolean;
 }
 
 const AnalysisDashboard: React.FC<DashboardProps> = ({ 
@@ -33,7 +33,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   homeImages = [],
   isDemoMode = false
 }) => {
-  // Local state to handle data updates (like benchmark refinement)
+  // Local state to handle data updates
   const [data, setData] = useState<AnalysisResult>(initialData);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
@@ -41,12 +41,12 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const [isVisualizerOpen, setIsVisualizerOpen] = useState(false);
   const [visualizerTarget, setVisualizerTarget] = useState<string>('');
 
-  // Map & Plan State - Default to 'plan'
+  // Map & Plan State - Default to 'plan' as requested
   const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('plan');
   const [zoomLevel, setZoomLevel] = useState<number>(20);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   
-  // Update local data if props change (e.g. parent re-analyzes)
+  // Update local data if props change
   useEffect(() => {
      setData(initialData);
   }, [initialData]);
@@ -59,11 +59,8 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     if (data.recommendations) {
       if (initialSelectedIndices && initialSelectedIndices.length > 0) {
-        // Use restored state if available
         setSelectedRecs(new Set(initialSelectedIndices));
       } else if (!initialSelectedIndices) {
-        // Default to all selected only if no initial state provided (undefined)
-        // If empty array [] is passed, it means user deselected everything, so we respect that.
         setSelectedRecs(new Set(data.recommendations.map((_, i) => i)));
       } else {
         setSelectedRecs(new Set());
@@ -95,7 +92,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const handleMapSwitch = (type: 'satellite' | 'roadmap' | 'plan') => {
       setMapView(type);
       if (type !== 'plan') {
-         // Reset zoom for maps
          setZoomLevel(type === 'satellite' ? 20 : 19);
       }
   };
@@ -109,7 +105,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
   // --- Derived Calculations ---
   
-  // 1. Calculate Total Potential Annual Savings based on SELECTED recommendations
+  // 1. Calculate Total Potential Annual Savings
   const calculatedAnnualSavings = useMemo(() => {
     return data.recommendations.reduce((acc, rec, idx) => {
       if (selectedRecs.has(idx)) {
@@ -119,7 +115,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
     }, 0);
   }, [data.recommendations, selectedRecs]);
 
-  // 2. Calculate Total Upfront Investment based on SELECTED recommendations
+  // 2. Calculate Total Upfront Investment
   const calculatedInvestment = useMemo(() => {
     return data.recommendations.reduce((acc, rec, idx) => {
       if (selectedRecs.has(idx)) {
@@ -129,10 +125,10 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
     }, 0);
   }, [data.recommendations, selectedRecs]);
 
-  // 3. Base Costs (Annual)
+  // 3. Base Costs
   const currentAnnualCost = data.currentMonthlyAvg * 12;
   
-  // 4. Projected Costs (Annual) = Base - Calculated Savings
+  // 4. Projected Costs
   const projectedAnnualCost = Math.max(0, currentAnnualCost - calculatedAnnualSavings);
 
   // 5. Payback Period
@@ -150,16 +146,14 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
   const savingsPercent = Math.round((calculatedAnnualSavings / currentAnnualCost) * 100);
 
-  // 7. kWh Calculations (Approximation based on cost savings ratio)
+  // 7. kWh Calculations
   const { currentKwh, projectedKwh } = useMemo(() => {
      if (!data.usageBreakdown?.monthly) return { currentKwh: 0, projectedKwh: 0 };
      
      const totalAnnualKwh = data.usageBreakdown.monthly.reduce((acc, m) => acc + (m.kwh || 0), 0);
-     const kwhDivisor = divisor; // Use the same divisor as cost (12, 52, 365, or 1)
+     const kwhDivisor = divisor;
      
      const currentAvgKwh = totalAnnualKwh / kwhDivisor;
-     
-     // Assume savings percentage applies roughly equally to kWh (simplification for UI)
      const percentSaved = currentAnnualCost > 0 ? calculatedAnnualSavings / currentAnnualCost : 0;
      const projectedAvgKwh = currentAvgKwh * (1 - percentSaved);
      
@@ -180,19 +174,8 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
     }
     setSelectedRecs(newSet);
     
-    // Emit change to parent
     if (onSelectionChange) {
       onSelectionChange(Array.from(newSet));
-    }
-  };
-
-  const scrollToRec = (e: React.MouseEvent, index: number) => {
-    e.stopPropagation();
-    const element = document.getElementById(`rec-${index}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element.classList.add('ring-2', 'ring-emerald-500', 'ring-offset-2');
-      setTimeout(() => element.classList.remove('ring-2', 'ring-emerald-500', 'ring-offset-2'), 2500);
     }
   };
 
@@ -216,9 +199,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
   const getCostBadgeColor = (costStr: string) => {
     const val = parseSavingsValue(costStr);
-    if (val < 100) return 'bg-emerald-50 text-emerald-700 border-emerald-100'; // Low Cost (Good)
-    if (val < 1000) return 'bg-amber-50 text-amber-700 border-amber-100';     // Medium Cost
-    return 'bg-rose-50 text-rose-700 border-rose-100';                         // High Cost
+    if (val < 100) return 'bg-emerald-50 text-emerald-700 border-emerald-100';
+    if (val < 1000) return 'bg-amber-50 text-amber-700 border-amber-100';
+    return 'bg-rose-50 text-rose-700 border-rose-100';
   };
   
   const getCostLabel = (costStr: string) => {
@@ -309,14 +292,12 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  // Google Maps Embed URL
   const mapUrl = useMemo(() => {
     const query = encodeURIComponent(data.address || 'London, UK');
-    const type = mapView === 'satellite' ? 'h' : 'm'; // h = hybrid, m = map
+    const type = mapView === 'satellite' ? 'h' : 'm'; 
     return `https://maps.google.com/maps?q=${query}&t=${type}&z=${zoomLevel}&ie=UTF8&iwloc=&output=embed`;
   }, [data.address, mapView, zoomLevel]);
 
-  // Default profile if none provided by API
   const defaultProfile: HomeProfile = {
       propertyType: 'Flat',
       bedrooms: 1,
@@ -327,8 +308,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       appliances: []
   };
 
-  // Helper to access current profile safely
-  const profile = data.homeProfile || defaultProfile;
   const currencySymbol = getCurrencySymbol(data.currency);
 
   return (
@@ -360,6 +339,29 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         )}
       </div>
 
+      {/* Executive Summary & EPC - Top Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Executive Summary - 60% */}
+        <div className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col h-full ${data.epc ? 'lg:col-span-3' : 'lg:col-span-5'}`}>
+          <h3 className="text-xl font-bold text-slate-800 mb-4">Executive Summary</h3>
+          <div className="prose prose-slate max-w-none text-slate-600 text-sm flex-1 leading-relaxed">
+            <ReactMarkdown components={MarkdownComponents}>{data.summary}</ReactMarkdown>
+          </div>
+        </div>
+
+        {/* EPC Chart - 40% */}
+        {data.epc && (
+          <div className="lg:col-span-2 h-full">
+             <EPCBadge 
+               epcData={data.epc}
+               isLoading={isUpdatingEPC}
+               onFileSelected={onEPCUpload}
+               className="h-full"
+             />
+          </div>
+        )}
+      </div>
+
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-[280px_1fr] gap-4">
         {/* Total Annual Savings Card */}
@@ -373,7 +375,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
           </div>
           <p className="text-xs text-slate-400 mt-2">Based on selected {selectedRecs.size}/{data.recommendations.length} actions</p>
           
-          {/* Stats Grid: Investment & Payback */}
           <div className="grid grid-cols-2 gap-4 mt-5">
              <div className="relative group cursor-help">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
@@ -381,11 +382,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                   <HelpCircle className="w-3 h-3 text-slate-300 transition-colors group-hover:text-emerald-500" />
                 </p>
                 
-                {/* Tooltip */}
                 <div className="absolute bottom-full left-0 mb-2 w-48 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0">
                     <p className="font-bold text-emerald-400 mb-1">Upfront Cost</p>
                     <p className="text-slate-300 leading-relaxed">Estimated total cost for materials and installation of selected measures.</p>
-                    <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-slate-800 rotate-45"></div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -404,11 +403,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                   <HelpCircle className="w-3 h-3 text-slate-300 transition-colors group-hover:text-emerald-500" />
                 </p>
 
-                {/* Tooltip */}
                 <div className="absolute bottom-full left-0 mb-2 w-48 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0">
                     <p className="font-bold text-emerald-400 mb-1">ROI Timeline</p>
                     <p className="text-slate-300 leading-relaxed">Time required for energy bill savings to cover the initial investment cost.</p>
-                    <div className="absolute -bottom-1.5 left-6 w-3 h-3 bg-slate-800 rotate-45"></div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -423,19 +420,13 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
           </div>
           
           <div className="mt-4 pt-4 border-t border-slate-100 relative group cursor-help">
-            {/* Custom Interactive Tooltip / Hover Card */}
             <div className="absolute bottom-full left-0 mb-2 w-64 p-4 bg-white border border-slate-200 text-slate-600 text-xs rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 translate-y-2 group-hover:translate-y-0">
                 <p className="font-bold text-slate-800 mb-2 text-sm">EPC Rating Upgrade</p>
-                <p className="leading-relaxed mb-3">
-                   Improving your rating reduces fuel bills and carbon footprint.
-                </p>
                 <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                   <p className="leading-relaxed">
                       Selected retrofits boost your home from <span className="font-bold text-amber-600">{data.epc?.current}</span> to <span className="font-bold text-emerald-600">{data.epc?.potential}</span>.
                   </p>
                 </div>
-                {/* Arrow */}
-                <div className="absolute -bottom-1.5 left-8 w-3 h-3 bg-white border-b border-r border-slate-200 rotate-45"></div>
             </div>
 
             <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -456,38 +447,21 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
         {/* Bill Impact & Action Plan Card */}
         <div id="savings-panel" className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 md:col-span-2 lg:col-span-1 scroll-mt-24">
-           {/* ... existing chart code ... */}
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3">
               <h3 className="text-sm font-medium text-slate-500 flex items-center gap-2">
                 Bill Impact ({viewMode})
               </h3>
               
-              {/* Toggle Switch */}
               <div className="bg-slate-100 p-1 rounded-lg flex items-center flex-wrap gap-1 sm:gap-0 w-full sm:w-auto justify-between sm:justify-start">
-                  <button 
-                    onClick={() => setViewMode('Daily')}
-                    className={`flex-1 sm:flex-none px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'Daily' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Daily
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('Weekly')}
-                    className={`flex-1 sm:flex-none px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'Weekly' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Weekly
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('Monthly')}
-                    className={`flex-1 sm:flex-none px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'Monthly' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Monthly
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('Yearly')}
-                    className={`flex-1 sm:flex-none px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === 'Yearly' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
-                    Yearly
-                  </button>
+                  {['Daily', 'Weekly', 'Monthly', 'Yearly'].map(mode => (
+                    <button 
+                        key={mode}
+                        onClick={() => setViewMode(mode as any)}
+                        className={`flex-1 sm:flex-none px-3 py-1 text-xs font-bold rounded-md transition-all ${viewMode === mode ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        {mode}
+                    </button>
+                  ))}
               </div>
            </div>
 
@@ -505,7 +479,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                       projectedKwh={projectedKwh}
                     />
                  </div>
-                 {/* ... stats ... */}
+                 
                  <div className="space-y-2 shrink-0">
                     <div className="flex justify-between items-center gap-4 border-t border-slate-100 pt-1">
                         <div>
@@ -575,27 +549,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Executive Summary */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col">
-          <h3 className="text-lg font-bold text-slate-800 mb-2">Executive Summary</h3>
-          <div className="prose prose-slate max-w-none text-slate-600 text-sm flex-1">
-            <ReactMarkdown components={MarkdownComponents}>{data.summary}</ReactMarkdown>
-          </div>
-        </div>
-
-        {/* EPC Chart */}
-        <div className="space-y-4">
-          {data.epc && (
-             <EPCBadge 
-               epcData={data.epc}
-               isLoading={isUpdatingEPC}
-               onFileSelected={onEPCUpload}
-             />
-          )}
-        </div>
-      </div>
-
       {/* Neighborhood Intelligence Panel & 3D Visualization */}
       <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200">
           {/* Header */}
@@ -615,16 +568,12 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
              <div className="flex items-center gap-4">
                {/* Neighborhood Rank Badge */}
                <div className="relative group cursor-help z-20 hidden sm:block">
-                   {/* Tooltip Start */}
                    <div className="absolute top-full right-0 mt-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-50 text-left">
                       <p className="font-bold text-emerald-400 mb-1">Efficiency Ranking</p>
                       <p className="text-slate-300 leading-relaxed">
                           Your home is more energy efficient than {data.comparison.efficiencyPercentile}% of similar properties in {data.comparison.neighborhoodName || 'your area'}.
                       </p>
-                      {/* Arrow */}
-                      <div className="absolute -top-1.5 right-6 w-3 h-3 bg-slate-800 rotate-45"></div>
                    </div>
-                   {/* Tooltip End */}
 
                    <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm transition-all group-hover:border-emerald-300 group-hover:shadow-md">
                        <div className="text-right">
@@ -634,25 +583,10 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                           </p>
                           <p className="text-sm font-bold text-slate-800 leading-none">Top {100 - data.comparison.efficiencyPercentile}%</p>
                        </div>
-                       {/* Cleaner Donut Chart */}
                        <div className="w-10 h-10 relative flex items-center justify-center">
                            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                              <path
-                                  className="text-slate-100"
-                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="3"
-                              />
-                              <path
-                                  className="transition-all duration-1000 ease-out"
-                                  strokeDasharray={`${data.comparison.efficiencyPercentile}, 100`}
-                                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                  fill="none"
-                                  stroke={data.comparison.efficiencyPercentile >= 75 ? '#10b981' : data.comparison.efficiencyPercentile >= 40 ? '#fbbf24' : '#ef4444'}
-                                  strokeWidth="3"
-                                  strokeLinecap="round"
-                              />
+                              <path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" />
+                              <path className="transition-all duration-1000 ease-out" strokeDasharray={`${data.comparison.efficiencyPercentile}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={data.comparison.efficiencyPercentile >= 75 ? '#10b981' : data.comparison.efficiencyPercentile >= 40 ? '#fbbf24' : '#ef4444'} strokeWidth="3" strokeLinecap="round" />
                            </svg>
                            <div className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${data.comparison.efficiencyPercentile >= 75 ? 'text-emerald-600' : data.comparison.efficiencyPercentile >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>
                                {data.comparison.efficiencyPercentile}
@@ -676,7 +610,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
              {/* Left: Map or Plan Visualization (Main Content) */}
              <div className="relative bg-slate-100 min-h-[500px] border-r border-slate-200 group overflow-hidden">
                 
-                {/* 1. Map Mode */}
                 {mapView !== 'plan' && (
                     <>
                         <iframe 
@@ -690,65 +623,29 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                         referrerPolicy="no-referrer-when-downgrade"
                         className="grayscale-[10%] group-hover:grayscale-0 transition-all duration-500 absolute inset-0"
                         />
-                        {/* Standard Zoom Controls for Map */}
                         <div className="absolute bottom-4 right-4 z-10 flex flex-col bg-white/95 backdrop-blur rounded-lg shadow-sm border border-slate-200 overflow-hidden w-8">
-                            <button 
-                                onClick={() => handleZoom('in')}
-                                className="h-8 flex items-center justify-center hover:bg-slate-50 text-slate-600 hover:text-indigo-600 transition-colors border-b border-slate-100"
-                                title="Zoom In"
-                            >
-                                <Plus className="w-4 h-4" />
-                            </button>
-                            <button 
-                                onClick={() => handleZoom('out')}
-                                className="h-8 flex items-center justify-center hover:bg-slate-50 text-slate-600 hover:text-indigo-600 transition-colors"
-                                title="Zoom Out"
-                            >
-                                <Minus className="w-4 h-4" />
-                            </button>
+                            <button onClick={() => handleZoom('in')} className="h-8 flex items-center justify-center hover:bg-slate-50 text-slate-600 hover:text-indigo-600 transition-colors border-b border-slate-100"><Plus className="w-4 h-4" /></button>
+                            <button onClick={() => handleZoom('out')} className="h-8 flex items-center justify-center hover:bg-slate-50 text-slate-600 hover:text-indigo-600 transition-colors"><Minus className="w-4 h-4" /></button>
                         </div>
                     </>
                 )}
 
-                {/* 2. Plan Mode */}
                 {mapView === 'plan' && (
                     <div className="absolute inset-0 bg-white flex flex-col items-center justify-center">
-                        
-                        {/* Always use the interactive 3D view for 'plan' mode, 
-                            passing the analysis data so it can reset/update based on the new report. 
-                            This replaces the legacy canvas generation logic for a richer experience. */}
                         <Demo3DView analysisData={data} isDemoMode={isDemoMode} />
-                        
                     </div>
                 )}
                 
-                {/* Mode Toggles (Bottom Left - Always visible) */}
                 <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-2">
                     <div className="flex bg-white/95 backdrop-blur rounded-lg p-1 shadow-sm border border-slate-200">
-                        <button 
-                            onClick={() => handleMapSwitch('roadmap')}
-                            className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${mapView === 'roadmap' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Map
-                        </button>
-                        <button 
-                            onClick={() => handleMapSwitch('satellite')}
-                            className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${mapView === 'satellite' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Sat
-                        </button>
-                        <button 
-                            onClick={() => handleMapSwitch('plan')}
-                            className={`px-2 py-1 text-[10px] font-bold rounded transition-colors flex items-center gap-1 ${mapView === 'plan' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            <Grid className="w-3 h-3" />
-                            Plan
-                        </button>
+                        <button onClick={() => handleMapSwitch('roadmap')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${mapView === 'roadmap' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>Map</button>
+                        <button onClick={() => handleMapSwitch('satellite')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors ${mapView === 'satellite' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}>Sat</button>
+                        <button onClick={() => handleMapSwitch('plan')} className={`px-2 py-1 text-[10px] font-bold rounded transition-colors flex items-center gap-1 ${mapView === 'plan' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}><Grid className="w-3 h-3" />Plan</button>
                     </div>
                 </div>
              </div>
 
-             {/* Right: Comparison Matrix (Conditionally Rendered via CSS/Grid) */}
+             {/* Right: Comparison Matrix */}
              {isSidebarVisible && (
                  <div className="p-6 bg-white flex flex-col h-full animate-fade-in-left">
                      <div className="flex items-center justify-between mb-4">
@@ -756,52 +653,34 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                             <Layers className="w-4 h-4 text-slate-500" />
                             Comparison Factors
                          </h4>
-                         <button 
-                            onClick={() => setIsProfileOpen(true)}
-                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded transition-colors"
-                         >
+                         <button onClick={() => setIsProfileOpen(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded transition-colors">
                             <Pencil className="w-3 h-3" /> Edit Profile
                          </button>
                      </div>
                      
                      <div className="space-y-4 flex-1">
-                        {/* Dynamic Factors List */}
                         {data.comparison.factors && data.comparison.factors.length > 0 ? (
                             data.comparison.factors.map((factor, i) => (
                                 <div key={i} className="group py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg">
                                     <div className="flex flex-col gap-2">
                                         <div className="flex justify-between items-start gap-4">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-1.5 shrink-0">
-                                                {factor.label}
-                                            </span>
-                                            <div className="text-[10px] px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border border-slate-200/50 shadow-sm">
-                                                {factor.variance}
-                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pt-1.5 shrink-0">{factor.label}</span>
+                                            <div className="text-[10px] px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border border-slate-200/50 shadow-sm">{factor.variance}</div>
                                         </div>
                                         <div className="flex items-center justify-between pl-1">
-                                            <div className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-800"></div>
-                                                {factor.userValue}
-                                            </div>
-                                            <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">
-                                                vs {factor.localAvg}
-                                            </div>
+                                            <div className="font-bold text-slate-700 text-sm flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-800"></div>{factor.userValue}</div>
+                                            <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">vs {factor.localAvg}</div>
                                         </div>
                                     </div>
                                 </div>
                             ))
                         ) : (
-                             <div className="text-center py-8 text-slate-400 text-sm">
-                                 Detailed comparison data not available.
-                             </div>
+                             <div className="text-center py-8 text-slate-400 text-sm">Detailed comparison data not available.</div>
                         )}
                      </div>
 
                      <div className="mt-6 bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-800 leading-relaxed">
-                        <p className="font-bold mb-1 flex items-center gap-1.5">
-                            <Users className="w-3.5 h-3.5" />
-                            AI Insight
-                        </p>
+                        <p className="font-bold mb-1 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> AI Insight</p>
                         {renderTextWithCitations(data.comparison.description)}
                      </div>
                  </div>
@@ -809,7 +688,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
           </div>
       </div>
       
-      {/* Profile Modal */}
       <HomeProfileModal 
         isOpen={isProfileOpen} 
         onClose={() => setIsProfileOpen(false)}
@@ -817,7 +695,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         onSave={handleProfileSave}
       />
       
-      {/* Visualizer Modal */}
       <RetrofitVisualizer 
         isOpen={isVisualizerOpen}
         onClose={() => setIsVisualizerOpen(false)}
@@ -825,13 +702,10 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         recommendationTitle={visualizerTarget}
       />
 
-      {/* Usage Trends Chart & Recommendations (Existing code) */}
-      {/* Note: I'm relying on the existing structure below for the rest of the dashboard */}
       {data.usageBreakdown && (
         <UsageTrendsChart data={data.usageBreakdown} currency={data.currency} />
       )}
 
-      {/* Recommendations Grid */}
       <div>
         <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2">
           <Zap className="w-6 h-6 text-emerald-500" />
@@ -877,12 +751,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                         <span className={`px-2 py-1 rounded-md text-xs font-semibold border inline-flex items-center justify-center cursor-help ${getCostBadgeColor(rec.estimatedCost)}`}>
                             {getCostLabel(rec.estimatedCost)}
                         </span>
-                        {/* Cost Tooltip */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-xl opacity-0 group-hover/cost:opacity-100 transition-all pointer-events-none z-50 text-center">
                             <p className="font-bold text-emerald-400 mb-0.5">Est. Cost</p>
                             <p>{rec.estimatedCost}</p>
-                            <p className="text-slate-400 mt-1 italic">Includes materials & install</p>
-                            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-800 rotate-45"></div>
                         </div>
                      </div>
                 </div>
@@ -909,7 +780,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                            <button
                               onClick={(e) => openVisualizer(e, rec.title)}
                               className="flex items-center gap-1.5 text-xs font-bold text-purple-600 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-lg hover:bg-purple-100 hover:border-purple-200 transition-all"
-                              title="Visualize this retrofit on your home"
                            >
                               <Sparkles className="w-3.5 h-3.5" />
                               <span className="hidden sm:inline">Visualize</span>
@@ -922,7 +792,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                               scrollToPanel('savings-panel');
                           }}
                           className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-all group/btn"
-                          title="View Impact on Savings"
                        >
                           <LineChart className="w-3.5 h-3.5" />
                           <span className="hidden sm:inline">Impact</span>
@@ -948,7 +817,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* References Footer */}
       <div className="border-t border-slate-200 pt-6 mt-8" id="references-section">
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -958,19 +826,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                </h4>
                <ol className="list-decimal list-inside space-y-2 text-xs text-slate-600">
                   {data.dataSources && data.dataSources.map((source, i) => (
-                    <li 
-                      key={i} 
-                      id={`ref-${i + 1}`} 
-                      className="pl-1 scroll-mt-24 transition-colors duration-500 rounded p-1"
-                    >
-                      <a 
-                         href={source.url}
-                         target="_blank"
-                         rel="noopener noreferrer" 
-                         className="hover:text-emerald-600 hover:underline inline-flex items-center gap-1 transition-colors"
-                      >
-                         {source.title}
-                         <ExternalLink className="w-3 h-3 text-slate-400" />
+                    <li key={i} id={`ref-${i + 1}`} className="pl-1 scroll-mt-24 transition-colors duration-500 rounded p-1">
+                      <a href={source.url} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 hover:underline inline-flex items-center gap-1 transition-colors">
+                         {source.title} <ExternalLink className="w-3 h-3 text-slate-400" />
                       </a>
                     </li>
                   ))}
@@ -987,12 +845,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                     data.sourceDocuments.map((doc, i) => (
                       <li key={i}>
                         {doc.url ? (
-                          <a 
-                            href={doc.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:border-emerald-300 hover:shadow-sm transition-all group"
-                          >
+                          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:border-emerald-300 hover:shadow-sm transition-all group">
                              {getFileIcon(doc.type)}
                              <span className="truncate flex-1 group-hover:text-emerald-700">{doc.name}</span>
                              {doc.date && <span className="text-slate-400 text-[10px] bg-slate-50 px-1.5 py-0.5 rounded">{doc.date}</span>}
