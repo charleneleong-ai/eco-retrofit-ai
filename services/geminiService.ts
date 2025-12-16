@@ -398,88 +398,21 @@ export const analyzeHomeData = async (
        - The 'dataSources' array in your JSON output MUST be populated by selecting the MOST RELEVANT URL from the "VERIFIED SOURCE LIBRARY" below.
        - DO NOT hallucinate URLs. Use EXACTLY the URLs provided in the library.
 
-    8. Neighborhood Intelligence (NEW):
-       - Estimate the 'neighborhoodName' (e.g. "Islington, London") based on address.
-       - Populate 'homeProfile' object with inferred or default data (e.g. Property type from photos, occupancy inferred from usage or default to 2).
-       - Populate 'factors' array in comparison object with:
-         - 'Build Type': User's home vs Local Avg.
-         - 'Size': User's home vs Local Avg.
-         - 'Occupancy': User occupancy vs Local Avg.
-         - 'Heating': User's system vs Standard.
-         - IMPORTANT: 'variance' field should be a SHORT sentence/phrase (max 10-12 words) explaining the context/impact (e.g. "Higher usage due to WFH", "Consistent with typical 1-bed", "Lower than avg occupancy"). Do NOT use single words like 'Match' or 'Higher'.
+    8. Neighborhood Intelligence & Spatial Awareness (NEW):
+       - Estimate the 'neighborhoodName' based on address.
+       - Populate 'homeProfile' object with inferred or default data.
+       - **Spatial Layout Inference**: Analyze the images/video frames to detect distinct rooms.
+         - For each room, estimate dimensions relative to a standard small room (1-10 scale).
+         - Identify key features: Windows, Doors, major furniture (Sofa, Bed, Desk, Kitchen Unit).
+         - Determine the 'type' of room (living, kitchen, bedroom, bathroom, office, hallway).
+         - **Layout Sequence**: Order the rooms in 'spatialLayout.rooms' to match the logical flow of the walkthrough video (e.g. Entrance -> Hallway -> Living -> Kitchen). 
+         - Create a CONNECTED logical sequence so the 3D model looks like a real apartment, not disparate boxes.
        
     === VERIFIED SOURCE LIBRARY ===
     ${VERIFIED_SOURCES_LIBRARY}
     ===============================
        
-    Output PURE JSON matching the following structure:
-    {
-      "customerName": "Extracted Name or 'Valued Customer'",
-      "address": "Extracted Address or 'Property Address'",
-      "auditDate": "Current Date (e.g. Oct 24, 2023)",
-      "summary": "Markdown executive summary.",
-      "currentMonthlyAvg": number,
-      "projectedMonthlyAvg": number,
-      "currency": "USD" or "GBP" or "EUR",
-      "monthlyUsage": [
-        { 
-            "label": "Jan 24", 
-            "kwh": 300, 
-            "cost": 80, 
-            "electricity": { "kwh": 100, "cost": 30 },
-            "gas": { "kwh": 200, "cost": 50 } 
-        }, ...
-      ],
-      "epc": {
-        "current": "D",
-        "potential": "B",
-        "score": 55,
-        "isEstimate": boolean,
-        "validUntil": "22 July 2034",
-        "certificateNumber": "0000-0000-...",
-        "propertyType": "Semi-detached house",
-        "totalFloorArea": "85 square metres",
-        "upgradePotentialExplanation": "Brief explanation...",
-        "breakdown": [
-           { "name": "Wall", "description": "Cavity wall, filled", "rating": "Good" },
-           { "name": "Window", "description": "Single glazed", "rating": "Very Poor" }
-        ]
-      },
-      "homeProfile": {
-          "propertyType": "Semi-detached",
-          "bedrooms": 3,
-          "occupants": 2,
-          "homeHours": "Evenings & Weekends",
-          "heatingType": "Gas Boiler",
-          "hasEV": false,
-          "appliances": ["Washing Machine", "Dishwasher"]
-      },
-      "comparison": {
-        "similarHomeAvgCost": number,
-        "areaAverageCost": number,
-        "efficientHomeCost": number,
-        "efficiencyPercentile": number,
-        "description": "Comparison text with citations like [1] or [3].",
-        "neighborhoodName": "String",
-        "factors": [
-           { "label": "Build Type", "userValue": "String", "localAvg": "String", "variance": "Contextual insight string" },
-           { "label": "Size", "userValue": "String", "localAvg": "String", "variance": "Contextual insight string" }
-        ]
-      },
-      "dataSources": [
-        { "title": "Exact Title from Library", "url": "Exact URL from Library" }
-      ],
-      "recommendations": [
-        {
-          "title": "Short title",
-          "description": "Detailed explanation with citations like [2].",
-          "estimatedCost": "Range string",
-          "estimatedAnnualSavings": "Range string",
-          "impact": "High" | "Medium" | "Low",
-          "category": "Insulation" | "Heating" | "Solar" | "Behavioral" | "Windows"
-        }
-      ]
-    }
+    Output PURE JSON matching the AnalysisResult schema (including spatialLayout).
   `;
 
   // Add Bills
@@ -502,10 +435,6 @@ export const analyzeHomeData = async (
       }
     });
   });
-
-  // IMPORTANT: We do NOT push raw video files to 'parts' here.
-  // Large base64 video payloads often cause Network Errors / CORS failures in the browser.
-  // We rely on the extracted frames passed in 'homeImages' for the visual analysis.
 
   // Add Prompt
   parts.push({ text: prompt });
@@ -583,6 +512,37 @@ export const analyzeHomeData = async (
                     appliances: { type: Type.ARRAY, items: { type: Type.STRING } }
                 }
             },
+            spatialLayout: {
+                type: Type.OBJECT,
+                properties: {
+                    rooms: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                name: { type: Type.STRING },
+                                type: { type: Type.STRING, enum: ['living', 'kitchen', 'bedroom', 'bathroom', 'office', 'hallway'] },
+                                dimensions: {
+                                    type: Type.OBJECT,
+                                    properties: { width: { type: Type.NUMBER }, depth: { type: Type.NUMBER } }
+                                },
+                                features: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            type: { type: Type.STRING, enum: ['furniture', 'window', 'door', 'appliance'] },
+                                            name: { type: Type.STRING },
+                                            position: { type: Type.STRING, enum: ['center', 'wall-left', 'wall-right', 'wall-back', 'corner'] }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             comparison: {
               type: Type.OBJECT,
               properties: {
@@ -644,32 +604,23 @@ export const analyzeHomeData = async (
       
       let usageBreakdown: UsageBreakdown;
 
-      // Check if we should preserve existing financial data
-      // Rule: If updating an existing analysis AND no new bills were uploaded, use previous data exactly.
       const shouldPreserveFinancials = previousAnalysis && billFiles.length === 0 && previousAnalysis.usageBreakdown;
 
       if (shouldPreserveFinancials) {
-          // Force use of previous breakdown structure (Daily, Weekly, Monthly)
-          // This prevents re-generation of daily variance and ensures identical charts
           usageBreakdown = previousAnalysis.usageBreakdown!;
-          
-          // Overwrite top-level metrics in the new result to match the preserved breakdown
           rawResult.currentMonthlyAvg = previousAnalysis.currentMonthlyAvg;
           rawResult.projectedMonthlyAvg = previousAnalysis.projectedMonthlyAvg;
           rawResult.currency = previousAnalysis.currency;
       } else {
-          // Programmatically generate daily and weekly breakdowns from the fresh monthly data
           usageBreakdown = generateDerivedUsageData(rawResult.monthlyUsage || []);
       }
       
       const result: AnalysisResult = {
         ...rawResult,
-        usageBreakdown // Inject the granular data
+        usageBreakdown 
       };
-      // Remove the temp property
       delete (result as any).monthlyUsage;
       
-      // Capture source documents using new type
       const currentSources: SourceDoc[] = [];
       
       billFiles.forEach(f => {
@@ -679,31 +630,11 @@ export const analyzeHomeData = async (
         });
       });
       
-      // Manually add the video files to the sources list so the user sees them in the report,
-      // even though we used extracted frames for the analysis.
       videoFiles.forEach((v, i) => {
         currentSources.push({ name: `Video ${i+1}`, type: 'video' });
       });
       
-      // Add photos (exclude frames from sources list to keep it clean, or include if desired)
-      // Heuristic: If we have frames, they are 'internal' to the video source, so maybe just show uploaded photos.
-      // But here homeImages contains both. We can rely on the fact that frames don't have filenames easily.
-      // Simply counting the homeImages that were passed in is tricky if we mixed them.
-      // For now, we'll assume homeImages passed here are just the images. 
-      // NOTE: In App.tsx, we will pass merged array. To keep the source list accurate, we might lose "Photo 1" distinction if we don't separate them.
-      // However, for the purpose of the report list, showing "Photo/Frame X" is acceptable.
-      
-      // Only add sources for the FIRST X images corresponding to uploaded photos if possible, 
-      // but simpler is to just list them.
-      if (homeImages.length > 0) {
-          // We don't want to list 50 extracted frames. 
-          // We will assume the App passes explicit videoFiles list for metadata.
-      }
-
-      // Merge with previous analysis sources if updating
       const previousSources = previousAnalysis?.sourceDocuments || [];
-      
-      // Merge and remove duplicates based on name
       const allSources = [...previousSources, ...currentSources];
       const uniqueSourcesMap = new Map();
       allSources.forEach(src => uniqueSourcesMap.set(src.name, src));

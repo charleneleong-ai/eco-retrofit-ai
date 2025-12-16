@@ -41,7 +41,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const [isVisualizerOpen, setIsVisualizerOpen] = useState(false);
   const [visualizerTarget, setVisualizerTarget] = useState<string>('');
 
-  // Map & Plan State
+  // Map & Plan State - Default to 'plan'
   const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('plan');
   const [zoomLevel, setZoomLevel] = useState<number>(20);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -674,7 +674,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
 
           <div className={`grid grid-cols-1 ${isSidebarVisible ? 'md:grid-cols-2 lg:grid-cols-[1fr_350px]' : 'lg:grid-cols-1'} gap-0 transition-all duration-300`}>
              {/* Left: Map or Plan Visualization (Main Content) */}
-             <div className="relative bg-slate-100 min-h-[350px] md:h-full border-r border-slate-200 group overflow-hidden">
+             <div className="relative bg-slate-100 min-h-[500px] border-r border-slate-200 group overflow-hidden">
                 
                 {/* 1. Map Mode */}
                 {mapView !== 'plan' && (

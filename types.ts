@@ -88,6 +88,25 @@ export interface SourceDoc {
   url?: string;
 }
 
+// NEW: 3D Spatial Types
+export interface RoomFeature {
+  type: 'furniture' | 'window' | 'door' | 'appliance';
+  name: string; // "Sofa", "Bed", "Desk"
+  position: 'center' | 'wall-left' | 'wall-right' | 'wall-back' | 'corner';
+}
+
+export interface RoomData {
+  id: string;
+  name: string; // "Living Room"
+  type: 'living' | 'kitchen' | 'bedroom' | 'bathroom' | 'office' | 'hallway';
+  dimensions: { width: number; depth: number }; // Relative units (1-10)
+  features: RoomFeature[];
+}
+
+export interface SpatialLayout {
+  rooms: RoomData[];
+}
+
 export interface AnalysisResult {
   customerName?: string;
   address?: string;
@@ -102,7 +121,8 @@ export interface AnalysisResult {
   usageBreakdown?: UsageBreakdown;
   epc?: EPCRating;
   sourceDocuments?: SourceDoc[];
-  homeProfile?: HomeProfile; // Added for editable comparison logic
+  homeProfile?: HomeProfile; 
+  spatialLayout?: SpatialLayout; // Added for dynamic 3D generation
 }
 
 export interface FileData {

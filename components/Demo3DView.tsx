@@ -2,7 +2,7 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { Layers, Grid, Maximize, Home, Monitor, Bed, Bath, Move, Rotate3d, CheckCircle2, Info, Menu } from 'lucide-react';
-import { AnalysisResult } from '../types';
+import { AnalysisResult, RoomData } from '../types';
 
 // Helper for texture creation (kept for labels)
 const createLabelTexture = (text: string) => {
@@ -71,6 +71,45 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
   const targetCamPos = useRef(new THREE.Vector3(14, 10, 14));
   const targetLookAt = useRef(new THREE.Vector3(0, 1.5, 0));
 
+  // --- MESH HELPERS ---
+  const addMesh = (geo: THREE.BufferGeometry, mat: THREE.Material, x:number, y:number, z:number, rx:number=0, ry:number=0, rz:number=0, parent: THREE.Object3D) => {
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.rotation.set(rx, ry, rz);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+  };
+
+  const createPlant = (x: number, y: number, z: number, size: number, scene: THREE.Scene) => {
+      const pot = new THREE.Mesh(
+        new THREE.CylinderGeometry(size * 0.7, size * 0.5, size * 1.5, 8),
+        new THREE.MeshStandardMaterial({ color: 0x8b7355 })
+      );
+      pot.position.set(x, y, z);
+      pot.castShadow = true;
+      scene.add(pot);
+      const leaves = new THREE.Mesh(
+        new THREE.SphereGeometry(size * 1.2, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0x2d5a2d })
+      );
+      leaves.position.set(x, y + size * 1.8, z);
+      leaves.scale.y = 1.3;
+      leaves.castShadow = true;
+      scene.add(leaves);
+  };
+
+  const addLabel = (text: string, x: number, y: number, z: number, viewId: string, scene: THREE.Scene) => {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: createLabelTexture(text), depthTest: false }));
+      sprite.position.set(x, y, z);
+      sprite.scale.set(2.5, 0.6, 1);
+      sprite.userData = { targetView: viewId };
+      sprite.renderOrder = 999;
+      scene.add(sprite);
+      labelSpritesRef.current.push(sprite);
+  };
+
   useEffect(() => {
     if (!mountRef.current) return;
     
@@ -86,6 +125,7 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     scene.background = new THREE.Color(0xf8fafc); 
     scene.fog = new THREE.Fog(0xf8fafc, 20, 60);
     sceneRef.current = scene;
+    labelSpritesRef.current = [];
     
     const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
@@ -130,214 +170,211 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     const woodMat = new THREE.MeshStandardMaterial({ color: 0xc19a6b, roughness: 0.7, metalness: 0.1 });
     const greyMat = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.6, metalness: 0.15 });
     const whiteMat = new THREE.MeshStandardMaterial({ color: 0xfcfcfc, roughness: 0.3, metalness: 0.1 });
-    
-    // ==== HELPERS ====
-    const addMesh = (geo: THREE.BufferGeometry, mat: THREE.Material, x:number, y:number, z:number, rx:number=0, ry:number=0, rz:number=0, parent: THREE.Object3D = scene) => {
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(x, y, z);
-        mesh.rotation.set(rx, ry, rz);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        parent.add(mesh);
-        return mesh;
-    };
 
-    const addLabel = (text: string, x: number, y: number, z: number, viewId: string) => {
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: createLabelTexture(text), depthTest: false }));
-        sprite.position.set(x, y, z);
-        sprite.scale.set(2.5, 0.6, 1);
-        sprite.userData = { targetView: viewId };
-        sprite.renderOrder = 999;
-        scene.add(sprite);
-        labelSpritesRef.current.push(sprite);
-    };
-
-    // Plant Helper
-    const createPlant = (x: number, y: number, z: number, size: number) => {
-      const pot = new THREE.Mesh(
-        new THREE.CylinderGeometry(size * 0.7, size * 0.5, size * 1.5, 8),
-        new THREE.MeshStandardMaterial({ color: 0x8b7355 })
-      );
-      pot.position.set(x, y, z);
-      pot.castShadow = true;
-      scene.add(pot);
-      const leaves = new THREE.Mesh(
-        new THREE.SphereGeometry(size * 1.2, 8, 8),
-        new THREE.MeshStandardMaterial({ color: 0x2d5a2d })
-      );
-      leaves.position.set(x, y + size * 1.8, z);
-      leaves.scale.y = 1.3;
-      leaves.castShadow = true;
-      scene.add(leaves);
-    };
-
-    // ==== SCENE CONSTRUCTION ====
-
-    // FLOORS
-    addMesh(new THREE.PlaneGeometry(12, 10), floorMat, 0, 0, 0, -Math.PI/2);
-    addMesh(new THREE.PlaneGeometry(3, 5), floorMat, -1, 0, 7.5, -Math.PI/2);
-    addMesh(new THREE.PlaneGeometry(5, 5), floorMat, -6, 0, 7.5, -Math.PI/2);
-    addMesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.3, metalness: 0.2 }), 3, 0, 8.5, -Math.PI/2);
-
-    // CEILINGS (Rotated to face down, so invisible from top)
-    addMesh(new THREE.PlaneGeometry(12, 10), ceilingMat, 0, 3, 0, Math.PI/2);
-    addMesh(new THREE.PlaneGeometry(3, 5), ceilingMat, -1, 3, 7.5, Math.PI/2);
-    addMesh(new THREE.PlaneGeometry(5, 5), ceilingMat, -6, 3, 7.5, Math.PI/2);
-    addMesh(new THREE.PlaneGeometry(3, 3), ceilingMat, 3, 3, 8.5, Math.PI/2);
-
-    // EXTERIOR WALLS
-    addMesh(new THREE.PlaneGeometry(12, 3), wallMat, 0, 1.5, -5); // Back
-    addMesh(new THREE.PlaneGeometry(15, 3), wallMat, -8.5, 1.5, 2.5, 0, Math.PI/2); // Left
-    
-    // Right Wall (Complex with Window)
-    addMesh(new THREE.PlaneGeometry(10, 0.8), wallMat, 6, 2.6, 0, 0, -Math.PI/2); // Top
-    addMesh(new THREE.PlaneGeometry(10, 1), wallMat, 6, 0.5, 0, 0, -Math.PI/2); // Bottom
-    addMesh(new THREE.PlaneGeometry(2.5, 3), wallMat, 6, 1.5, -3.75, 0, -Math.PI/2); // Left of window
-    addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 6, 1.5, 5.5, 0, -Math.PI/2); // Right of window
-
-    // Window & Shutters
-    addMesh(new THREE.BoxGeometry(0.15, 2.2, 2.5), whiteMat, 5.93, 1.5, -1); // Frame
-    addMesh(new THREE.PlaneGeometry(2.3, 2), new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }), 5.92, 1.5, -1, 0, -Math.PI/2); // Glass
-    
-    for (let i = 0; i < 3; i++) {
-        const z = -1.75 + i * 0.85;
-        const panel = addMesh(new THREE.BoxGeometry(0.08, 2, 0.75), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), 5.85, 1, z);
-        for (let j = 0; j < 10; j++) {
-            addMesh(new THREE.BoxGeometry(0.06, 0.12, 0.7), new THREE.MeshStandardMaterial({ color: 0xf5f5f5 }), 5.85, 0.2 + j * 0.19, z);
-        }
-    }
-
-    // Radiator
-    addMesh(new THREE.BoxGeometry(0.15, 0.5, 2), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.3, roughness: 0.6 }), 5.85, 0.25, -1);
-    for (let i = 0; i < 15; i++) {
-        addMesh(new THREE.BoxGeometry(0.12, 0.45, 0.02), new THREE.MeshStandardMaterial({ color: 0xdddddd }), 5.85, 0.25, -1.9 + i * 0.13);
-    }
-
-    // Plants on Sill
-    createPlant(5.75, 1.05, -1.8, 0.08);
-    createPlant(5.75, 1.05, -0.5, 0.09);
-    createPlant(5.75, 1.05, 0.8, 0.07);
-
-    // Front Walls
-    addMesh(new THREE.PlaneGeometry(4, 3), wallMat, -4, 1.5, 5, 0, Math.PI);
-    addMesh(new THREE.PlaneGeometry(6, 3), wallMat, 3, 1.5, 5, 0, Math.PI);
-
-    // INTERIOR WALLS
-    addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 0.5, 1.5, 7.5, 0, -Math.PI/2); // Hall Right
-    addMesh(new THREE.PlaneGeometry(5, 3), wallMat, -6, 1.5, 10); // Bed Back
-    addMesh(new THREE.PlaneGeometry(3, 3), wallMat, -3.5, 1.5, 8.5, 0, -Math.PI/2); // Bed Right
-    addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 3, 1.5, 10); // Bath Back
-    addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 1.5, 1.5, 8.5, 0, Math.PI/2); // Bath Left
-
-    // DOORS
-    addMesh(new THREE.BoxGeometry(1.2, 2.5, 0.08), doorMat, -1, 1.25, 9.96); // Entry
-    addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, -3.5, 1.15, 7); // Bed
-    addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, 1.5, 1.15, 7); // Bath
-
-    // HALLWAY ITEMS
-    addMesh(new THREE.BoxGeometry(0.6, 1.2, 0.08), new THREE.MeshStandardMaterial({ color: 0xe0e0e0 }), 0.42, 1.2, 8); // Hook board
-    addMesh(new THREE.BoxGeometry(0.4, 0.6, 0.2), new THREE.MeshStandardMaterial({ color: 0xc4a052 }), 0.35, 1.4, 8.2); // Jacket
-    addMesh(new THREE.BoxGeometry(0.15, 0.08, 0.25), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -1.5, 0.04, 9); // Shoe 1
-    addMesh(new THREE.BoxGeometry(0.15, 0.08, 0.25), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -1.2, 0.04, 9.2); // Shoe 2
-    addMesh(new THREE.PlaneGeometry(0.5, 0.7), new THREE.MeshStandardMaterial({ color: 0xaabbcc, metalness: 0.9, roughness: 0.1 }), 0.48, 1.6, 7, 0, -Math.PI/2); // Mirror
-
-    // OFFICE AREA
-    addMesh(new THREE.BoxGeometry(2.2, 0.06, 0.9), woodMat, -3.5, 0.75, 3.5); // Desk Top
-    addMesh(new THREE.CylinderGeometry(0.04, 0.04, 0.75, 8), new THREE.MeshStandardMaterial({ color: 0x999999 }), -4.4, 0.375, 3.1); // Leg 1
-    addMesh(new THREE.CylinderGeometry(0.04, 0.04, 0.75, 8), new THREE.MeshStandardMaterial({ color: 0x999999 }), -2.6, 0.375, 3.1); // Leg 2
-    
-    // Monitors & Laptop
-    addMesh(new THREE.BoxGeometry(0.65, 0.45, 0.05), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -4, 1.25, 3.5);
-    addMesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshStandardMaterial({ color: 0xd5d5ff, emissive: 0x5a5a9a, emissiveIntensity: 0.25 }), -4, 1.25, 3.53);
-    addMesh(new THREE.BoxGeometry(0.65, 0.45, 0.05), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -3, 1.25, 3.5);
-    addMesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshStandardMaterial({ color: 0x2d2d2d, emissive: 0x1a1a1a, emissiveIntensity: 0.15 }), -3, 1.25, 3.53);
-    addMesh(new THREE.BoxGeometry(0.35, 0.02, 0.25), new THREE.MeshStandardMaterial({ color: 0x3a3a3a }), -3.8, 0.78, 3);
-    addMesh(new THREE.BoxGeometry(0.35, 0.22, 0.02), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -3.8, 0.89, 3.12, -0.25);
-
-    // Chair
-    addMesh(new THREE.CylinderGeometry(0.35, 0.35, 0.08, 16), new THREE.MeshStandardMaterial({ color: 0xe8e8e8 }), -3.5, 0.5, 2.2);
-    addMesh(new THREE.BoxGeometry(0.6, 0.65, 0.08), new THREE.MeshStandardMaterial({ color: 0xe8e8e8 }), -3.5, 0.83, 1.88);
-
-    // Lamp
-    addMesh(new THREE.CylinderGeometry(0.03, 0.04, 1.75, 12), new THREE.MeshStandardMaterial({ color: 0xbbbbbb }), -2.2, 0.875, 3.8);
-    addMesh(new THREE.CylinderGeometry(0.32, 0.38, 0.28, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffdd, emissiveIntensity: 0.5, side: THREE.DoubleSide }), -2.2, 1.87, 3.8);
-    const lampLight = new THREE.PointLight(0xffffcc, 0.7, 5);
-    lampLight.position.set(-2.2, 1.8, 3.8);
-    scene.add(lampLight);
-
-    // LIVING AREA
-    // Sofa
-    addMesh(new THREE.BoxGeometry(2.2, 0.4, 0.9), greyMat, 4.3, 0.2, -1);
-    addMesh(new THREE.BoxGeometry(2.1, 0.25, 0.8), new THREE.MeshStandardMaterial({ color: 0x7a7a7a }), 4.3, 0.525, -1);
-    addMesh(new THREE.BoxGeometry(2.1, 0.6, 0.2), greyMat, 4.3, 0.7, -1.4);
-    addMesh(new THREE.BoxGeometry(0.15, 0.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x4a4a4a }), 3.3, 0.6, -1);
-    addMesh(new THREE.BoxGeometry(0.15, 0.5, 0.8), new THREE.MeshStandardMaterial({ color: 0x4a4a4a }), 5.3, 0.6, -1);
-    addMesh(new THREE.BoxGeometry(0.8, 0.15, 0.6), new THREE.MeshStandardMaterial({ color: 0xc43030, roughness: 0.8 }), 4.8, 0.72, -1); // Red Blanket
-
-    // Shelving
-    addMesh(new THREE.BoxGeometry(0.35, 1.8, 2.2), new THREE.MeshStandardMaterial({ color: 0xfafafa }), 1, 0.9, 1);
-    createPlant(0.9, 0.36, 0.3, 0.06);
-    createPlant(0.9, 0.36, 1.7, 0.07);
-    createPlant(0.9, 0.86, 1, 0.06);
-
-    // Table
-    addMesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 24), whiteMat, 3, 0.45, 0.5);
-    addMesh(new THREE.CylinderGeometry(0.25, 0.3, 0.4, 16), new THREE.MeshStandardMaterial({ color: 0xf5f5f5 }), 3, 0.2, 0.5);
-
-    // KITCHEN
-    addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), greyMat, -2.5, 0.45, -4.7);
-    addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), greyMat, 1.5, 0.45, -4.7);
-    addMesh(new THREE.BoxGeometry(2.6, 0.08, 0.65), whiteMat, -2.5, 0.94, -4.7);
-    addMesh(new THREE.BoxGeometry(2.6, 0.08, 0.65), whiteMat, 1.5, 0.94, -4.7);
-    addMesh(new THREE.BoxGeometry(0.5, 0.18, 0.4), new THREE.MeshStandardMaterial({ color: 0xd0d0d0, roughness: 0.15, metalness: 0.85 }), 1.5, 0.9, -4.7); // Sink
-    addMesh(new THREE.BoxGeometry(1.6, 1.1, 0.1), whiteMat, 1.5, 1.75, -4.95); // Window Frame
-    addMesh(new THREE.PlaneGeometry(1.4, 0.9), new THREE.MeshStandardMaterial({ color: 0x88bbdd, transparent: true, opacity: 0.3 }), 1.5, 1.75, -4.94); // Glass
-    addMesh(new THREE.BoxGeometry(3.5, 0.8, 0.4), greyMat, -1, 2.3, -4.8); // Upper
-    addMesh(new THREE.BoxGeometry(0.6, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: 0x3a3a3a }), -2.5, 1.6, -4.75); // Microwave
-    addMesh(new THREE.CylinderGeometry(0.11, 0.13, 0.2, 12), new THREE.MeshStandardMaterial({ color: 0x3a4a8a, roughness: 0.3, metalness: 0.7 }), -3.2, 1.08, -4.5); // Kettle
-    createPlant(2.2, 1, -4.5, 0.06);
-    createPlant(0.9, 1, -4.5, 0.05);
-
-    // String Lights
-    for (let i = 0; i < 30; i++) {
-      const t = i / 29;
-      const x = -5 + t * 10;
-      const z = -2 + Math.sin(t * Math.PI * 3) * 2.5;
-      const bulb = addMesh(new THREE.SphereGeometry(0.05, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffd700, emissive: 0xffaa00, emissiveIntensity: 0.8 }), x, 2.85, z);
-      if (i % 2 === 0) {
-        const light = new THREE.PointLight(0xffd700, 0.15, 1.8);
-        light.position.copy(bulb.position);
-        scene.add(light);
-      }
-    }
-
-    // BEDROOM
-    addMesh(new THREE.BoxGeometry(2, 0.5, 2.8), woodMat, -6.5, 0.25, 8); // Frame
-    addMesh(new THREE.BoxGeometry(1.9, 0.3, 2.7), new THREE.MeshStandardMaterial({ color: 0xf4f4f4 }), -6.5, 0.65, 8); // Mattress
-    addMesh(new THREE.BoxGeometry(0.8, 0.15, 0.5), new THREE.MeshStandardMaterial({ color: 0xf8f8f8 }), -6.5, 0.88, 6.8); // Pillow
-    addMesh(new THREE.BoxGeometry(1.8, 0.12, 1.2), new THREE.MeshStandardMaterial({ color: 0xc43030 }), -6.5, 0.86, 8.5); // Blanket
-    addMesh(new THREE.BoxGeometry(0.5, 0.6, 0.4), woodMat, -5.2, 0.3, 7); // Nightstand
-
-    // BATHROOM
-    addMesh(new THREE.BoxGeometry(0.4, 0.4, 0.6), whiteMat, 3.5, 0.2, 9.3); // Toilet Base
-    addMesh(new THREE.CylinderGeometry(0.25, 0.25, 0.08, 16), whiteMat, 3.5, 0.44, 9.3); // Seat
-    addMesh(new THREE.BoxGeometry(0.35, 0.5, 0.2), whiteMat, 3.5, 0.65, 9.6); // Tank
-    addMesh(new THREE.BoxGeometry(0.6, 0.15, 0.45), whiteMat, 2.3, 0.9, 7.5); // Sink
-    addMesh(new THREE.CylinderGeometry(0.15, 0.2, 0.85, 12), whiteMat, 2.3, 0.425, 7.5); // Pedestal
-    addMesh(new THREE.BoxGeometry(0.8, 0.5, 1.6), whiteMat, 4.2, 0.25, 8.3); // Tub
-
-    // LABELS
-    addLabel("Living Room", 3, 2.5, -1, 'living');
-    addLabel("Office", -3.5, 2.5, 3.5, 'office');
-    addLabel("Kitchen", 0, 2.5, -4, 'kitchen');
-    addLabel("Bedroom", -6.5, 2.5, 8, 'bedroom');
-    addLabel("Bathroom", 3.5, 2.5, 8.5, 'bathroom');
-
-    // Grid
+    // Grid Helper
     const gridHelper = new THREE.GridHelper(40, 40, 0xcccccc, 0xe8e8e8);
     gridHelper.position.y = 0.01;
     gridHelper.visible = showGrid;
     scene.add(gridHelper);
+
+    // --- SCENE GENERATION LOGIC ---
+
+    const renderDynamicScene = (rooms: RoomData[]) => {
+        let currentX = 0;
+        let maxDepth = 0;
+        
+        // 1. Pre-calculate layout bounds to determine foundation size
+        rooms.forEach(r => {
+             maxDepth = Math.max(maxDepth, r.dimensions.depth);
+        });
+        const safeMaxDepth = Math.max(3, maxDepth * 0.8);
+
+        // 2. Render Rooms as a contiguous block (No Spacing)
+        rooms.forEach((room, index) => {
+            const w = Math.max(3, room.dimensions.width * 0.8);
+            const d = Math.max(3, room.dimensions.depth * 0.8);
+            const h = 2.8; // Standard ceiling height
+            
+            // Floor - align all rooms to back wall (z=0) for a "corridor" linear layout
+            addMesh(new THREE.PlaneGeometry(w, d), floorMat, currentX + w/2, 0.02, d/2, -Math.PI/2, 0, 0, scene);
+            
+            // Walls construction
+            // Back Wall (Continuous exterior line)
+            addMesh(new THREE.PlaneGeometry(w, h), wallMat, currentX + w/2, h/2, 0, 0, 0, 0, scene); 
+            
+            // Left Wall (Draw for first room OR as partition)
+            // Note: We always draw left wall for current room, effectively creating partitions
+            addMesh(new THREE.PlaneGeometry(d, h), wallMat, currentX, h/2, d/2, 0, Math.PI/2, 0, scene);
+            
+            // Right Wall (Only for the very last room to close the building)
+            if (index === rooms.length - 1) {
+                 addMesh(new THREE.PlaneGeometry(d, h), wallMat, currentX + w, h/2, d/2, 0, -Math.PI/2, 0, scene);
+            }
+
+            // Cutaway Front "Lip" (Visual indication of wall without blocking view)
+            addMesh(new THREE.BoxGeometry(w, 0.2, 0.2), wallMat, currentX + w/2, 0.1, d, 0, 0, 0, scene);
+
+            // Label
+            addLabel(room.name, currentX + w/2, 2.5, d/2, room.type, scene);
+
+            // Furniture Generation
+            room.features?.forEach(feat => {
+                // Relative positioning inside the room
+                let fx = currentX + w/2; 
+                let fz = d/2;
+                
+                // Simple auto-layout logic
+                if (feat.position === 'wall-back') { fz = 0.8; }
+                if (feat.position === 'wall-left') { fx = currentX + 0.8; }
+                if (feat.position === 'wall-right') { fx = currentX + w - 0.8; }
+                if (feat.position === 'corner') { fx = currentX + 0.8; fz = 0.8; }
+
+                if (feat.type === 'furniture' || feat.name.toLowerCase().includes('sofa') || feat.name.toLowerCase().includes('bed')) {
+                    if (feat.name.toLowerCase().includes('bed')) {
+                        addMesh(new THREE.BoxGeometry(1.8, 0.5, 2), woodMat, fx, 0.25, fz, 0, 0, 0, scene);
+                        addMesh(new THREE.BoxGeometry(1.7, 0.2, 1.9), new THREE.MeshStandardMaterial({color: 0xc43030}), fx, 0.6, fz, 0, 0, 0, scene); 
+                    } else if (feat.name.toLowerCase().includes('sofa')) {
+                        addMesh(new THREE.BoxGeometry(2, 0.5, 0.8), greyMat, fx, 0.25, fz, 0, 0, 0, scene);
+                        addMesh(new THREE.BoxGeometry(2, 0.6, 0.2), greyMat, fx, 0.5, fz - 0.3, 0, 0, 0, scene);
+                    } else if (feat.name.toLowerCase().includes('desk')) {
+                        addMesh(new THREE.BoxGeometry(1.5, 0.1, 0.7), woodMat, fx, 0.75, fz, 0, 0, 0, scene);
+                        addMesh(new THREE.BoxGeometry(0.1, 0.7, 0.1), whiteMat, fx-0.6, 0.35, fz-0.3, 0, 0, 0, scene);
+                        addMesh(new THREE.BoxGeometry(0.1, 0.7, 0.1), whiteMat, fx+0.6, 0.35, fz-0.3, 0, 0, 0, scene);
+                    } else {
+                        addMesh(new THREE.BoxGeometry(1, 0.5, 1), whiteMat, fx, 0.25, fz, 0, 0, 0, scene);
+                    }
+                } else if (feat.type === 'appliance' || room.type === 'kitchen') {
+                     if (feat.name.toLowerCase().includes('fridge')) {
+                         addMesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshStandardMaterial({color: 0xcccccc}), fx, 0.9, fz, 0, 0, 0, scene);
+                     } else {
+                         addMesh(new THREE.BoxGeometry(1, 0.9, 0.6), greyMat, fx, 0.45, fz, 0, 0, 0, scene);
+                     }
+                }
+            });
+
+            // Default props if empty features
+            if (!room.features || room.features.length === 0) {
+                if (room.type === 'bedroom') {
+                    addMesh(new THREE.BoxGeometry(1.6, 0.5, 2), woodMat, currentX + w/2, 0.25, d/2, 0, 0, 0, scene);
+                }
+                if (room.type === 'kitchen') {
+                    addMesh(new THREE.BoxGeometry(w-1, 0.9, 0.6), greyMat, currentX + w/2, 0.45, 0.5, 0, 0, 0, scene);
+                }
+            }
+
+            // Move X pointer for next room (tight packing)
+            currentX += w;
+        });
+        
+        // 3. Unified Foundation/Base (The Plinth)
+        // Create a solid base under the entire apartment strip to visually bind it
+        const totalWidth = currentX;
+        const baseGeo = new THREE.BoxGeometry(totalWidth + 1, 0.2, safeMaxDepth + 1); 
+        const baseMesh = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0xdddddd }));
+        baseMesh.position.set(totalWidth / 2, -0.11, safeMaxDepth / 2);
+        baseMesh.receiveShadow = true;
+        scene.add(baseMesh);
+        
+        // Center camera roughly
+        const centerX = totalWidth / 2;
+        const centerZ = safeMaxDepth / 2;
+        cameraState.current.target.set(centerX, 0, centerZ);
+        targetLookAt.current.set(centerX, 0, centerZ);
+        
+        // Adjust initial camera position
+        targetCamPos.current.set(centerX + 10, 12, centerZ + 12);
+    };
+
+    const renderStaticDemoScene = () => {
+        // FLOORS
+        addMesh(new THREE.PlaneGeometry(12, 10), floorMat, 0, 0, 0, -Math.PI/2, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(3, 5), floorMat, -1, 0, 7.5, -Math.PI/2, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(5, 5), floorMat, -6, 0, 7.5, -Math.PI/2, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.3, metalness: 0.2 }), 3, 0, 8.5, -Math.PI/2, 0, 0, scene);
+
+        // CEILINGS
+        addMesh(new THREE.PlaneGeometry(12, 10), ceilingMat, 0, 3, 0, Math.PI/2, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(3, 5), ceilingMat, -1, 3, 7.5, Math.PI/2, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(5, 5), ceilingMat, -6, 3, 7.5, Math.PI/2, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(3, 3), ceilingMat, 3, 3, 8.5, Math.PI/2, 0, 0, scene);
+
+        // EXTERIOR WALLS
+        addMesh(new THREE.PlaneGeometry(12, 3), wallMat, 0, 1.5, -5, 0, 0, 0, scene); // Back
+        addMesh(new THREE.PlaneGeometry(15, 3), wallMat, -8.5, 1.5, 2.5, 0, Math.PI/2, 0, scene); // Left
+        
+        // Right Wall (Complex with Window)
+        addMesh(new THREE.PlaneGeometry(10, 0.8), wallMat, 6, 2.6, 0, 0, -Math.PI/2, 0, scene); // Top
+        addMesh(new THREE.PlaneGeometry(10, 1), wallMat, 6, 0.5, 0, 0, -Math.PI/2, 0, scene); // Bottom
+        addMesh(new THREE.PlaneGeometry(2.5, 3), wallMat, 6, 1.5, -3.75, 0, -Math.PI/2, 0, scene); // Left of window
+        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 6, 1.5, 5.5, 0, -Math.PI/2, 0, scene); // Right of window
+
+        // Window & Shutters
+        addMesh(new THREE.BoxGeometry(0.15, 2.2, 2.5), whiteMat, 5.93, 1.5, -1, 0, 0, 0, scene); // Frame
+        addMesh(new THREE.PlaneGeometry(2.3, 2), new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }), 5.92, 1.5, -1, 0, -Math.PI/2, 0, scene); // Glass
+        
+        // Radiator
+        addMesh(new THREE.BoxGeometry(0.15, 0.5, 2), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.3, roughness: 0.6 }), 5.85, 0.25, -1, 0, 0, 0, scene);
+
+        // Plants on Sill
+        createPlant(5.75, 1.05, -1.8, 0.08, scene);
+        createPlant(5.75, 1.05, -0.5, 0.09, scene);
+        createPlant(5.75, 1.05, 0.8, 0.07, scene);
+
+        // Front Walls
+        addMesh(new THREE.PlaneGeometry(4, 3), wallMat, -4, 1.5, 5, 0, Math.PI, 0, scene);
+        addMesh(new THREE.PlaneGeometry(6, 3), wallMat, 3, 1.5, 5, 0, Math.PI, 0, scene);
+
+        // INTERIOR WALLS
+        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 0.5, 1.5, 7.5, 0, -Math.PI/2, 0, scene); // Hall Right
+        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, -6, 1.5, 10, 0, 0, 0, scene); // Bed Back
+        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, -3.5, 1.5, 8.5, 0, -Math.PI/2, 0, scene); // Bed Right
+        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 3, 1.5, 10, 0, 0, 0, scene); // Bath Back
+        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 1.5, 1.5, 8.5, 0, Math.PI/2, 0, scene); // Bath Left
+
+        // DOORS
+        addMesh(new THREE.BoxGeometry(1.2, 2.5, 0.08), doorMat, -1, 1.25, 9.96, 0, 0, 0, scene); // Entry
+        addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, -3.5, 1.15, 7, 0, 0, 0, scene); // Bed
+        addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, 1.5, 1.15, 7, 0, 0, 0, scene); // Bath
+
+        // FURNITURE
+        // Office
+        addMesh(new THREE.BoxGeometry(2.2, 0.06, 0.9), woodMat, -3.5, 0.75, 3.5, 0, 0, 0, scene); // Desk Top
+        addMesh(new THREE.BoxGeometry(0.65, 0.45, 0.05), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -4, 1.25, 3.5, 0, 0, 0, scene);
+        addMesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshStandardMaterial({ color: 0xd5d5ff, emissive: 0x5a5a9a, emissiveIntensity: 0.25 }), -4, 1.25, 3.53, 0, 0, 0, scene);
+        
+        // Sofa
+        addMesh(new THREE.BoxGeometry(2.2, 0.4, 0.9), greyMat, 4.3, 0.2, -1, 0, 0, 0, scene);
+        addMesh(new THREE.BoxGeometry(2.1, 0.6, 0.2), greyMat, 4.3, 0.7, -1.4, 0, 0, 0, scene);
+        addMesh(new THREE.BoxGeometry(0.8, 0.15, 0.6), new THREE.MeshStandardMaterial({ color: 0xc43030, roughness: 0.8 }), 4.8, 0.72, -1, 0, 0, 0, scene); // Red Blanket
+
+        // Kitchen
+        addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), greyMat, -2.5, 0.45, -4.7, 0, 0, 0, scene);
+        addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), greyMat, 1.5, 0.45, -4.7, 0, 0, 0, scene);
+        createPlant(2.2, 1, -4.5, 0.06, scene);
+
+        // Bed
+        addMesh(new THREE.BoxGeometry(2, 0.5, 2.8), woodMat, -6.5, 0.25, 8, 0, 0, 0, scene); // Frame
+        addMesh(new THREE.BoxGeometry(1.8, 0.12, 1.2), new THREE.MeshStandardMaterial({ color: 0xc43030 }), -6.5, 0.86, 8.5, 0, 0, 0, scene); // Blanket
+
+        // Bath
+        addMesh(new THREE.BoxGeometry(0.8, 0.5, 1.6), whiteMat, 4.2, 0.25, 8.3, 0, 0, 0, scene); // Tub
+
+        // LABELS
+        addLabel("Living Room", 3, 2.5, -1, 'living', scene);
+        addLabel("Office", -3.5, 2.5, 3.5, 'office', scene);
+        addLabel("Kitchen", 0, 2.5, -4, 'kitchen', scene);
+        addLabel("Bedroom", -6.5, 2.5, 8, 'bedroom', scene);
+        addLabel("Bathroom", 3.5, 2.5, 8.5, 'bathroom', scene);
+    };
+
+    // --- DECISION LOGIC ---
+    // If not demo mode AND we have spatial layout data, generate dynamic scene.
+    // Otherwise (or if demo mode), render static high-fidelity Highbury scene.
+    if (!isDemoMode && analysisData?.spatialLayout?.rooms && analysisData.spatialLayout.rooms.length > 0) {
+        renderDynamicScene(analysisData.spatialLayout.rooms);
+    } else {
+        renderStaticDemoScene();
+    }
 
     // EVENTS
     const handleResize = () => {
@@ -501,12 +538,11 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
   // Determine active features based on view
   const activeFeature = useMemo(() => {
       switch(view) {
-          case 'living': return { title: "Living Room", desc: "Large window with white shutters, radiator, plants, grey sofa with red blanket" };
-          case 'office': return { title: "Home Office", desc: "Dual monitors, laptop setup, wooden desk, floor lamp" };
-          case 'kitchen': return { title: "Kitchen", desc: "Grey cabinetry, window above sink, microwave, kettle, string lights" };
-          case 'bedroom': return { title: "Bedroom", desc: "Double bed, red duvet, yellow pillows, wooden nightstand" };
-          case 'bathroom': return { title: "Bathroom", desc: "Bathtub, toilet, pedestal sink, tiled floor" };
-          case 'hallway': return { title: "Hallway", desc: "Shoe rack, coat hooks, mirror" };
+          case 'living': return { title: "Living Room", desc: "Detected living space with seating area." };
+          case 'office': return { title: "Home Office", desc: "Workspace identified." };
+          case 'kitchen': return { title: "Kitchen", desc: "Food preparation area." };
+          case 'bedroom': return { title: "Bedroom", desc: "Sleeping quarters." };
+          case 'bathroom': return { title: "Bathroom", desc: "Sanitary facilities." };
           default: return null;
       }
   }, [view]);
@@ -539,10 +575,29 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
                     <Maximize className="w-3 h-3" /> Top Plan
                  </button>
                  
-                 <button onClick={() => setView('living')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'living' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Home className="w-3 h-3"/> Living</button>
-                 <button onClick={() => setView('office')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'office' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor className="w-3 h-3"/> Office</button>
-                 <button onClick={() => setView('bedroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bedroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bed className="w-3 h-3"/> Bed</button>
-                 <button onClick={() => setView('bathroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bathroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bath className="w-3 h-3"/> Bath</button>
+                 {(analysisData?.spatialLayout?.rooms || []).map((room, i) => (
+                     <button 
+                        key={room.id || i}
+                        onClick={() => setView(room.type)} 
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all capitalize ${view === room.type ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                     >
+                        {room.type === 'living' && <Home className="w-3 h-3"/>}
+                        {room.type === 'bedroom' && <Bed className="w-3 h-3"/>}
+                        {room.type === 'kitchen' && <Layers className="w-3 h-3"/>}
+                        {room.type === 'bathroom' && <Bath className="w-3 h-3"/>}
+                        {room.type === 'office' && <Monitor className="w-3 h-3"/>}
+                        {room.name}
+                     </button>
+                 ))}
+                 
+                 {(!analysisData?.spatialLayout?.rooms || analysisData.spatialLayout.rooms.length === 0) && (
+                    <>
+                        <button onClick={() => setView('living')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'living' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Home className="w-3 h-3"/> Living</button>
+                        <button onClick={() => setView('office')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'office' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor className="w-3 h-3"/> Office</button>
+                        <button onClick={() => setView('bedroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bedroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bed className="w-3 h-3"/> Bed</button>
+                        <button onClick={() => setView('bathroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bathroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bath className="w-3 h-3"/> Bath</button>
+                    </>
+                 )}
               </div>
           </div>
       </div>
