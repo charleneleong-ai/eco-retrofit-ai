@@ -42,7 +42,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const [visualizerTarget, setVisualizerTarget] = useState<string>('');
 
   // Map & Plan State
-  const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('satellite');
+  const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('plan');
   const [zoomLevel, setZoomLevel] = useState<number>(20);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   
