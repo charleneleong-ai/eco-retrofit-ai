@@ -349,6 +349,12 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         rendererRef.current.setSize(w, h);
     };
     
+    // Add ResizeObserver to handle container size changes (e.g. sidebar toggle)
+    const resizeObserver = new ResizeObserver(() => {
+        handleResize();
+    });
+    resizeObserver.observe(mountRef.current);
+    
     // ORBIT CONTROLS LOGIC
     const onMouseDown = (e: MouseEvent) => {
         isDraggingLogicRef.current = true;
@@ -414,6 +420,8 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     window.addEventListener('mouseup', onMouseUp);
     mountRef.current.addEventListener('wheel', onWheel, { passive: false });
     mountRef.current.addEventListener('click', handleClick);
+    
+    // Fallback for standard resize events
     window.addEventListener('resize', handleResize);
 
     // Animation Loop
@@ -453,6 +461,7 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
 
     return () => {
         if(mountRef.current) {
+            resizeObserver.disconnect();
             mountRef.current.removeEventListener('mousedown', onMouseDown);
             mountRef.current.removeEventListener('wheel', onWheel);
             mountRef.current.removeEventListener('click', handleClick);
