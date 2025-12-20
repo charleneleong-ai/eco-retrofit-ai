@@ -24,15 +24,11 @@ interface DashboardProps {
 }
 
 const FactorItem: React.FC<{ factor: ComparisonFactor }> = ({ factor }) => {
-    const [isHovered, setIsHovered] = useState(false);
+    const [showTooltip, setShowTooltip] = useState(false);
     const isLivingPattern = factor.label.toLowerCase().includes('pattern') || factor.label.toLowerCase().includes('occupancy') || factor.label.toLowerCase().includes('load') || factor.label.toLowerCase().includes('preference');
 
     return (
-        <div 
-            className="group py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg relative"
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-        >
+        <div className="py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg relative">
             <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-start gap-4">
                     <div className="flex flex-col">
@@ -53,26 +49,31 @@ const FactorItem: React.FC<{ factor: ComparisonFactor }> = ({ factor }) => {
                     <div className="flex items-center gap-2">
                         <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">vs {factor.localAvg}</div>
                         {factor.explanation && (
-                            <Info className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-400 transition-colors cursor-help" />
+                            <div 
+                                className="relative"
+                                onMouseEnter={() => setShowTooltip(true)}
+                                onMouseLeave={() => setShowTooltip(false)}
+                            >
+                                <Info className="w-3.5 h-3.5 text-slate-300 hover:text-purple-500 transition-colors cursor-help" />
+                                {/* Methodology Pop-up (Explanation) */}
+                                {showTooltip && (
+                                    <div className="absolute right-0 bottom-full mb-2 z-50 animate-fade-in-up w-64">
+                                        <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-purple-100 ring-1 ring-slate-900/5">
+                                            <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                <Brain className="w-3 h-3" /> AI Methodology
+                                            </p>
+                                            <p className="text-xs text-slate-600 leading-relaxed italic">
+                                                "{factor.explanation}"
+                                            </p>
+                                            <div className="absolute right-1 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-white/95"></div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
-
-            {/* Methodology Pop-up (Explanation) */}
-            {isHovered && factor.explanation && (
-                <div className="absolute left-0 right-0 bottom-full mb-2 z-50 animate-fade-in-up">
-                    <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-purple-100 ring-1 ring-slate-900/5 max-w-sm">
-                        <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                            <Brain className="w-3 h-3" /> AI Methodology
-                        </p>
-                        <p className="text-xs text-slate-600 leading-relaxed italic">
-                            "{factor.explanation}"
-                        </p>
-                        <div className="absolute left-6 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-white/95"></div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
@@ -312,31 +313,53 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
              <div className="relative group cursor-help">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">Investment <HelpCircle className="w-3 h-3 text-slate-300" /></p>
                 <div className="flex items-center gap-1.5"><div className="bg-slate-100 p-1 rounded-md"><Coins className="w-3.5 h-3.5 text-slate-500" /></div><span className="font-bold text-slate-700 text-sm">{currencySymbol}{Math.round(calculatedInvestment).toLocaleString()}</span></div>
+                
+                {/* TOOLTIP */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-slate-800 text-white text-[9px] font-medium p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center leading-snug shadow-xl">
+                    Estimated upfront cost. Actual quotes may vary.
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
+                </div>
              </div>
              <div className="relative group cursor-help">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">Payback <HelpCircle className="w-3 h-3 text-slate-300" /></p>
                 <div className="flex items-center gap-1.5"><div className="bg-slate-100 p-1 rounded-md"><Timer className="w-3.5 h-3.5 text-slate-500" /></div><span className="font-bold text-slate-700 text-sm">{paybackPeriodYears <= 0 ? '-' : paybackPeriodYears < 1 ? '< 1 Year' : `${paybackPeriodYears.toFixed(1)} Years`}</span></div>
+                
+                {/* TOOLTIP */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-32 bg-slate-800 text-white text-[9px] font-medium p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 text-center leading-snug shadow-xl">
+                    Time to recoup costs via bill savings.
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
+                </div>
              </div>
           </div>
 
-          {/* Compact EPC Summary - Inserted as requested */}
+          {/* Compact EPC Summary */}
           {data.epc && (
             <div className="mt-5 pt-4 border-t border-slate-100">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Efficiency Rating</p>
                 <div className="flex items-center justify-between bg-slate-50 rounded-lg p-2.5 border border-slate-100">
-                    <div className="flex flex-col items-center flex-1">
+                    <div className="flex flex-col items-center flex-1 relative group/epc-curr cursor-help">
                         <span className="text-[10px] text-slate-500 mb-1 font-medium">Current</span>
                         <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm shadow-sm ${getEPCColorClass(data.epc.current)}`}>
                             {data.epc.current}
+                        </div>
+                        {/* Current Rating Tooltip */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-36 bg-slate-800 text-white text-[9px] font-medium p-2 rounded-lg opacity-0 group-hover/epc-curr:opacity-100 transition-opacity pointer-events-none z-50 text-center leading-snug shadow-xl">
+                            Based on verified energy bills and home construction.
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
                         </div>
                     </div>
                     <div className="flex items-center justify-center px-2">
                         <ArrowRight className="w-4 h-4 text-slate-300" />
                     </div>
-                    <div className="flex flex-col items-center flex-1">
+                    <div className="flex flex-col items-center flex-1 relative group/epc-pot cursor-help">
                         <span className="text-[10px] text-slate-500 mb-1 font-medium">Potential</span>
                         <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm shadow-sm ${getEPCColorClass(data.epc.potential)}`}>
                             {data.epc.potential}
+                        </div>
+                        {/* Potential Rating Tooltip */}
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-36 bg-slate-800 text-white text-[9px] font-medium p-2 rounded-lg opacity-0 group-hover/epc-pot:opacity-100 transition-opacity pointer-events-none z-50 text-center leading-snug shadow-xl">
+                            Projected rating after completing all recommended retrofits.
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-slate-800"></div>
                         </div>
                     </div>
                 </div>
@@ -384,8 +407,27 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
              <div className="flex items-center gap-4">
                <div className="relative group cursor-help z-20 hidden sm:block">
                    <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm transition-all group-hover:border-emerald-300 group-hover:shadow-md">
-                       <div className="text-right"><p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide flex items-center justify-end gap-1">Local Rank <HelpCircle className="w-3 h-3" /></p><p className="text-sm font-bold text-slate-800 leading-none">Top {100 - data.comparison.efficiencyPercentile}%</p></div>
+                       <div className="text-right"><p className="text-[10px] text-slate-400 uppercase font-bold tracking-wide flex items-center justify-end gap-1">Composite Rank <HelpCircle className="w-3 h-3" /></p><p className="text-sm font-bold text-slate-800 leading-none">Top {100 - data.comparison.efficiencyPercentile}%</p></div>
                        <div className="w-10 h-10 relative flex items-center justify-center"><svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36"><path className="text-slate-100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3" /><path className="transition-all duration-1000 ease-out" strokeDasharray={`${data.comparison.efficiencyPercentile}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={data.comparison.efficiencyPercentile >= 75 ? '#10b981' : data.comparison.efficiencyPercentile >= 40 ? '#fbbf24' : '#ef4444'} strokeWidth="3" strokeLinecap="round" /></svg><div className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${data.comparison.efficiencyPercentile >= 75 ? 'text-emerald-600' : data.comparison.efficiencyPercentile >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>{data.comparison.efficiencyPercentile}</div></div>
+                   </div>
+                   {/* COMPOSITE RANK TOOLTIP */}
+                   <div className="absolute top-full right-0 mt-3 w-72 bg-white p-4 rounded-xl shadow-2xl border border-purple-100 ring-1 ring-slate-900/5 z-50 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none translate-y-2 group-hover:translate-y-0 text-left">
+                       <div className="absolute -top-2 right-6 w-4 h-4 bg-white border-t border-l border-purple-100 transform rotate-45"></div>
+                       <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                           <Brain className="w-3 h-3" /> Composite Benchmarking
+                       </p>
+                       <p className="text-xs text-slate-600 leading-relaxed mb-3">
+                           Your home performs better than <strong>{100 - data.comparison.efficiencyPercentile}%</strong> of similar households, factoring in both building structure and usage patterns beyond just your local area.
+                       </p>
+                       <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 text-[10px] text-slate-500">
+                           <p className="font-bold mb-1 text-slate-600">Comparison Scope:</p>
+                           <ul className="list-disc list-inside space-y-0.5">
+                               <li>Similar build era across regions</li>
+                               <li>Household behavioural patterns</li>
+                               <li>Adjusted for verified occupancy ({data.homeProfile?.occupants || '2'} people)</li>
+                               <li>Cross-regional building stock analysis</li>
+                           </ul>
+                       </div>
                    </div>
                </div>
                <button onClick={() => setIsSidebarVisible(!isSidebarVisible)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-transparent hover:border-indigo-100">{isSidebarVisible ? <PanelRightClose className="w-5 h-5" /> : <PanelRightOpen className="w-5 h-5" />}</button>
@@ -418,7 +460,8 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
         homeImages={homeImages} 
         recommendations={data.recommendations}
         analysisResult={data} 
-        isDemoMode={isDemoMode} 
+        isDemoMode={isDemoMode}
+        initialSelectedIndices={Array.from(selectedRecs)}
       />
       {data.usageBreakdown && <UsageTrendsChart data={data.usageBreakdown} currency={data.currency} />}
 

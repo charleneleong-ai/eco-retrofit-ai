@@ -13,6 +13,7 @@ interface RetrofitVisualizerProps {
   recommendations: Recommendation[];
   analysisResult?: AnalysisResult;
   isDemoMode?: boolean;
+  initialSelectedIndices?: number[];
 }
 
 type ViewAngle = 'Front Isometric' | 'Rotate Left' | 'Rotate Right' | 'Top-Down Plan';
@@ -24,7 +25,8 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
   homeImages, 
   recommendations,
   analysisResult,
-  isDemoMode = false
+  isDemoMode = false,
+  initialSelectedIndices = []
 }) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
@@ -42,6 +44,19 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
   
   // Cache key: combined actions sorted + view params
   const [renderCache, setRenderCache] = useState<Record<string, string>>({});
+
+  // Reset or Sync on Open
+  useEffect(() => {
+    if (isOpen) {
+        // Sync visualizer selection with dashboard selection when opening
+        setActiveActions(new Set(initialSelectedIndices));
+    } else {
+        // Reset state when closed
+        setGeneratedImage(null);
+        setError(null);
+        setIsLoading(false);
+    }
+  }, [isOpen]); // Only trigger on open state change
 
   // Sync internal view with forcedView prop
   const forced3DView = useMemo(() => {
@@ -123,15 +138,6 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
     }
   }, [homeImages, selectedImageIndex, combinedTitle, viewAngle, detailLevel, renderCache, activeActions]);
 
-  // Handle cleanup on close
-  useEffect(() => {
-    if (!isOpen) {
-      setGeneratedImage(null);
-      setError(null);
-      setIsLoading(false);
-    }
-  }, [isOpen]);
-
   if (!isOpen) return null;
 
   return (
@@ -169,7 +175,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                 ) : (
                     <Sparkles className="w-4 h-4" />
                 )}
-                {isLoading ? 'Synthesising...' : 'Apply Strategy'}
+                {isLoading ? 'Synthesising...' : 'Apply'}
             </Button>
             
             <div className="h-8 w-px bg-slate-200 mx-1"></div>
@@ -281,7 +287,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                   </div>
                   
                   <div className="p-4 bg-slate-50 border-t border-slate-100 text-[10px] text-center text-slate-400 font-medium">
-                      Select measures and click "Apply Strategy" to render changes.
+                      Select measures and click "Apply" to render changes.
                   </div>
               </div>
 
