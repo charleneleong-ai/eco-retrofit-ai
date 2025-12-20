@@ -148,7 +148,9 @@ While the property is a Victorian conversion, our AI audit has identified signif
     { title: "EST: Draught Proofing & Windows", url: "https://energysavingtrust.org.uk/advice/draught-proofing/" },
     { title: "EST: Thermostats & Controls", url: "https://energysavingtrust.org.uk/advice/thermostats-and-heating-controls/" },
     { title: "EST: Home Appliances", url: "https://energysavingtrust.org.uk/advice/home-appliances/" },
-    { title: "EST: Radiator Insulation Panels", url: "https://energysavingtrust.org.uk/advice/insulating-tanks-pipes-and-radiators/" }
+    { title: "EST: Radiator Insulation Panels", url: "https://energysavingtrust.org.uk/advice/insulating-tanks-pipes-and-radiators/" },
+    { title: "EST: Lighting Advice", url: "https://energysavingtrust.org.uk/advice/lighting/" },
+    { title: "EST: Saving Water", url: "https://energysavingtrust.org.uk/advice/saving-water-home/" }
   ],
   recommendations: [
     {
@@ -160,12 +162,20 @@ While the property is a Victorian conversion, our AI audit has identified signif
       category: "Heating"
     },
     {
-      title: "Window Insulation Film",
-      description: "While you have double glazing, the 'Average' EPC rating suggests heat loss. Applying thermal film acts as triple glazing without structural changes [2].",
-      estimatedCost: "£20 - £40",
-      estimatedAnnualSavings: "£40 - £55",
+      title: "Whole-Home LED Transition",
+      description: "We identified several incandescent bulbs in your hallway and bedroom. Switching all bulbs to LEDs will reduce your lighting electricity load by 80% [6].",
+      estimatedCost: "£30 - £50",
+      estimatedAnnualSavings: "£45 - £60",
       impact: "Medium",
-      category: "Insulation"
+      category: "Lighting"
+    },
+    {
+      title: "Eco-Flow Showerhead",
+      description: "Reducing water volume while maintaining pressure can significantly lower the gas required for hot water heating, especially with 2 occupants [7].",
+      estimatedCost: "£20 - £35",
+      estimatedAnnualSavings: "£35 - £50",
+      impact: "Medium",
+      category: "Water"
     },
     {
       title: "Reflective Radiator Panels",
@@ -176,12 +186,12 @@ While the property is a Victorian conversion, our AI audit has identified signif
       category: "Heating"
     },
     {
-      title: "Draft Proofing Strips",
-      description: "Apply self-adhesive foam strips to the front door and sash windows to stop 'average' rated glazing from letting in drafts [2].",
-      estimatedCost: "£10 - £15",
-      estimatedAnnualSavings: "£20 - £30",
-      impact: "Medium",
-      category: "Insulation"
+      title: "Smart Power Strips",
+      description: "Your office setup has a high standby load. A smart strip will automatically cut power to monitors and peripherals when your PC is off [4].",
+      estimatedCost: "£15 - £25",
+      estimatedAnnualSavings: "£15 - £25",
+      impact: "Low",
+      category: "Smart Home"
     }
   ]
 };

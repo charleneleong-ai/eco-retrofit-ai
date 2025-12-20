@@ -3,15 +3,14 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { generateRetrofitVisualization } from '../services/geminiService';
 import Button from './Button';
 import Demo3DView, { Demo3DViewHandle } from './Demo3DView';
-import { AnalysisResult } from '../types';
-import { Sparkles, X, ImageIcon, AlertCircle, RotateCw, RotateCcw, Box, Layers, Eye, EyeOff } from 'lucide-react';
+import { AnalysisResult, Recommendation } from '../types';
+import { Sparkles, X, ImageIcon, AlertCircle, RotateCw, RotateCcw, Box, Layers, Eye, EyeOff, CheckSquare, Square } from 'lucide-react';
 
 interface RetrofitVisualizerProps {
   isOpen: boolean;
   onClose: () => void;
   homeImages: string[]; // Base64 strings
-  recommendationTitle: string; 
-  recommendationCategory: string;
+  recommendations: Recommendation[];
   analysisResult?: AnalysisResult;
   isDemoMode?: boolean;
 }
@@ -23,8 +22,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
   isOpen, 
   onClose, 
   homeImages, 
-  recommendationTitle,
-  recommendationCategory,
+  recommendations,
   analysisResult,
   isDemoMode = false
 }) => {
@@ -34,17 +32,19 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [showComparison, setShowComparison] = useState(false);
   
+  // Strategy Builder State
+  const [activeActions, setActiveActions] = useState<Set<number>>(new Set());
+  
   const [viewAngle, setViewAngle] = useState<ViewAngle>('Front Isometric');
   const [detailLevel, setDetailLevel] = useState<DetailLevel>('Standard');
 
   const demo3DRef = useRef<Demo3DViewHandle>(null);
   const sidebar3DRef = useRef<Demo3DViewHandle>(null);
   
-  // Local cache to store results for this recommendation session
-  // Key format: "Title|Angle|Detail"
+  // Cache key: combined actions sorted + view params
   const [renderCache, setRenderCache] = useState<Record<string, string>>({});
 
-  // Map the control panel's ViewAngle to Demo3DView's internal view strings
+  // Sync internal view with forcedView prop
   const forced3DView = useMemo(() => {
       switch(viewAngle) {
           case 'Top-Down Plan': return 'top';
@@ -57,10 +57,34 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
 
   const lastGeneratedRef = useRef<string>('');
 
+  // Automatically select the first recommendation if none are selected when opening
+  useEffect(() => {
+    if (isOpen && activeActions.size === 0 && recommendations.length > 0) {
+      setActiveActions(new Set([0]));
+    }
+  }, [isOpen, recommendations]);
+
+  const toggleAction = (idx: number) => {
+    const newSet = new Set(activeActions);
+    if (newSet.has(idx)) {
+        newSet.delete(idx);
+    } else {
+        newSet.add(idx);
+    }
+    setActiveActions(newSet);
+  };
+
+  const combinedTitle = useMemo(() => {
+      if (activeActions.size === 0) return "General efficiency improvements";
+      return Array.from(activeActions)
+        .map(idx => recommendations[idx].title)
+        .join(" and ");
+  }, [activeActions, recommendations]);
+
   const handleGenerate = useCallback(async () => {
-    const cacheKey = `${recommendationTitle}|${viewAngle}|${detailLevel}`;
+    const actionKey = Array.from(activeActions).sort().join(",");
+    const cacheKey = `${actionKey}|${viewAngle}|${detailLevel}`;
     
-    // Check if we have this specific configuration cached
     if (renderCache[cacheKey]) {
         setError(null);
         setGeneratedImage(renderCache[cacheKey]);
@@ -91,12 +115,11 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
 
       const result = await generateRetrofitVisualization(
           sourceImage, 
-          recommendationTitle,
+          combinedTitle,
           viewAngle,
           detailLevel
       );
       
-      // Save to cache before setting state
       setRenderCache(prev => ({
           ...prev,
           [cacheKey]: result
@@ -110,26 +133,24 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [homeImages, selectedImageIndex, recommendationTitle, viewAngle, detailLevel, renderCache]);
+  }, [homeImages, selectedImageIndex, combinedTitle, viewAngle, detailLevel, renderCache, activeActions]);
 
   useEffect(() => {
-    if (isOpen && (homeImages.length > 0 || isDemoMode)) {
-      const cacheKey = `${recommendationTitle}|${viewAngle}|${detailLevel}`;
+    if (isOpen && (homeImages.length > 0 || isDemoMode) && activeActions.size > 0) {
+      const actionKey = Array.from(activeActions).sort().join(",");
+      const cacheKey = `${actionKey}|${viewAngle}|${detailLevel}`;
       
       if (lastGeneratedRef.current !== cacheKey) {
-        // If it's in the cache, we trigger immediately to avoid the "scanning" feel for instant loads
         if (renderCache[cacheKey]) {
             handleGenerate();
         } else {
-            // New render: Small delay to allow 3D scene to initialize and orient before capturing snapshot
             const timer = setTimeout(() => handleGenerate(), 800);
             return () => clearTimeout(timer);
         }
       }
     }
-  }, [isOpen, homeImages.length, isDemoMode, selectedImageIndex, recommendationTitle, viewAngle, detailLevel, handleGenerate, renderCache]);
+  }, [isOpen, homeImages.length, isDemoMode, combinedTitle, viewAngle, detailLevel, handleGenerate, renderCache, activeActions]);
 
-  // Reset session tracking when modal is closed, but keep cache for better UX if they re-open same recommendation
   useEffect(() => {
     if (!isOpen) {
       lastGeneratedRef.current = '';
@@ -150,11 +171,10 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
           <div>
             <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Box className="w-5 h-5 text-purple-600" />
-              Retrofit Visualizer
+              Retrofit Strategy Visualizer
             </h2>
             <p className="text-sm text-slate-500 flex items-center gap-1.5">
-              Visualizing: <span className="font-semibold text-slate-700">{recommendationTitle}</span>
-              <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wide">{recommendationCategory}</span>
+              Active Measures: <span className="font-semibold text-slate-700">{activeActions.size} selected</span>
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
@@ -164,29 +184,38 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
 
         <div className="flex-1 overflow-hidden flex flex-col lg:flex-row h-full relative">
             
-              {/* Left: Controls */}
+              {/* Left: Strategy Builder Sidebar */}
               <div className="lg:w-80 border-r border-slate-200 bg-white flex flex-col z-10 shadow-lg h-full overflow-hidden">
-                  <div className="p-4 flex-1 overflow-y-auto">
+                  <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
                       
-                      {/* 1. Location Context (Small Sidebar Reference) */}
+                      {/* 1. Measure Strategy */}
                       <div className="mb-6">
                           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                              1. Location Context
+                              1. Select Measures to Visualise
                           </h3>
-                          <div className="h-40 w-full rounded-xl overflow-hidden border border-slate-200 relative group cursor-grab">
-                              <div className="absolute inset-0 bg-slate-50">
-                                  <Demo3DView 
-                                      ref={sidebar3DRef}
-                                      analysisData={analysisResult} 
-                                      isDemoMode={isDemoMode} 
-                                      minimalUI={true} 
-                                      initialView="perspective"
-                                      highlightCategory={recommendationCategory}
-                                  />
-                              </div>
-                              <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur px-2 py-1 rounded-md text-[9px] font-bold text-slate-500 shadow-sm pointer-events-none">
-                                  Location Map
-                              </div>
+                          <div className="space-y-2">
+                              {recommendations.map((rec, idx) => {
+                                  const isActive = activeActions.has(idx);
+                                  return (
+                                      <button
+                                          key={idx}
+                                          onClick={() => toggleAction(idx)}
+                                          className={`w-full text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 ${
+                                              isActive 
+                                              ? 'bg-purple-50 border-purple-200 text-purple-900' 
+                                              : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                                          }`}
+                                      >
+                                          <div className={`mt-0.5 shrink-0 ${isActive ? 'text-purple-600' : 'text-slate-300'}`}>
+                                              {isActive ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                                          </div>
+                                          <div>
+                                              <p className="text-[11px] font-bold leading-tight">{rec.title}</p>
+                                              <p className="text-[9px] opacity-60 mt-0.5">{rec.category}</p>
+                                          </div>
+                                      </button>
+                                  );
+                              })}
                           </div>
                       </div>
 
@@ -195,22 +224,17 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                               2. View Angle
                           </h3>
-                          
                           <div className="flex bg-slate-100 p-1 rounded-lg mb-2">
-                              <button 
-                                onClick={() => setViewAngle('Front Isometric')}
-                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewAngle === 'Front Isometric' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                              >
-                                  Front
-                              </button>
-                              <button 
-                                onClick={() => setViewAngle('Top-Down Plan')}
-                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewAngle === 'Top-Down Plan' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                              >
-                                  Top Plan
-                              </button>
+                              {(['Front Isometric', 'Top-Down Plan'] as ViewAngle[]).map(angle => (
+                                  <button 
+                                    key={angle}
+                                    onClick={() => setViewAngle(angle)}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewAngle === angle ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                  >
+                                      {angle === 'Front Isometric' ? 'Front' : 'Top Plan'}
+                                  </button>
+                              ))}
                           </div>
-                          
                           <div className="flex gap-2">
                               <button 
                                 onClick={() => setViewAngle('Rotate Left')}
@@ -231,30 +255,21 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                       <div className="mb-6">
                           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">3. Granularity</h3>
                           <div className="space-y-2">
-                              <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${detailLevel === 'Standard' ? 'bg-white border-purple-200 ring-1 ring-purple-100' : 'bg-slate-50 border-transparent opacity-70 hover:opacity-100'}`}>
-                                <input 
-                                    type="radio" name="detail" className="accent-purple-600" 
-                                    checked={detailLevel === 'Standard'} 
-                                    onChange={() => setDetailLevel('Standard')}
-                                />
-                                <div>
-                                    <p className="text-xs font-bold text-slate-700">Standard Model</p>
-                                    <p className="text-[10px] text-slate-500">Fast generation, smooth surfaces.</p>
-                                </div>
-                              </label>
-                              <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${detailLevel === 'High' ? 'bg-white border-purple-200 ring-1 ring-purple-100' : 'bg-slate-50 border-transparent opacity-70 hover:opacity-100'}`}>
-                                <input 
-                                    type="radio" name="detail" className="accent-purple-600" 
-                                    checked={detailLevel === 'High'} 
-                                    onChange={() => setDetailLevel('High')}
-                                />
-                                <div>
-                                    <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                        High Fidelity <span className="bg-purple-100 text-purple-700 px-1 rounded text-[9px]">HD</span>
-                                    </p>
-                                    <p className="text-[10px] text-slate-500">Granular textures, realistic lighting.</p>
-                                </div>
-                              </label>
+                              {(['Standard', 'High'] as DetailLevel[]).map(level => (
+                                  <label key={level} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${detailLevel === level ? 'bg-white border-purple-200 ring-1 ring-purple-100' : 'bg-slate-50 border-transparent opacity-70 hover:opacity-100'}`}>
+                                    <input 
+                                        type="radio" name="detail" className="accent-purple-600" 
+                                        checked={detailLevel === level} 
+                                        onChange={() => setDetailLevel(level)}
+                                    />
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                            {level === 'High' ? <>High Fidelity <span className="bg-purple-100 text-purple-700 px-1 rounded text-[9px]">HD</span></> : 'Standard Model'}
+                                        </p>
+                                        <p className="text-[10px] text-slate-500">{level === 'High' ? 'Granular textures, realistic lighting.' : 'Fast generation, smooth surfaces.'}</p>
+                                    </div>
+                                  </label>
+                              ))}
                           </div>
                       </div>
 
@@ -263,10 +278,10 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                   <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0">
                       <Button 
                         onClick={handleGenerate} 
-                        disabled={isLoading} 
+                        disabled={isLoading || activeActions.size === 0} 
                         className="w-full bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200"
                       >
-                          {isLoading ? 'Processing...' : 'Regenerate View'}
+                          {isLoading ? 'Processing...' : 'Apply Strategy'}
                       </Button>
                   </div>
               </div>
@@ -275,7 +290,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
               <div className="flex-1 bg-slate-100/50 flex flex-col relative overflow-hidden">
                   <div className="flex-1 flex items-center justify-center p-6 relative">
                       
-                      {/* Background: Interactive Demo 3D View as the base context */}
+                      {/* Interactive Context */}
                       <div className={`absolute inset-0 z-0 transition-opacity duration-500 ${generatedImage && !showComparison ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                           <Demo3DView 
                               ref={demo3DRef}
@@ -283,16 +298,15 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                               isDemoMode={isDemoMode} 
                               minimalUI={true} 
                               forcedView={forced3DView}
-                              highlightCategory={recommendationCategory}
                           />
                       </div>
 
                       {isLoading && (
                           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm">
-                            <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center border border-purple-100">
+                            <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center border border-purple-100 max-w-xs text-center">
                                 <div className="w-12 h-12 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                                <p className="text-purple-800 font-bold mb-1">Applying Retrofit...</p>
-                                <p className="text-xs text-purple-600/70">{viewAngle} • AI Synthesis</p>
+                                <p className="text-purple-800 font-bold mb-1">Synthesizing Retrofit...</p>
+                                <p className="text-[10px] text-purple-600/70">{combinedTitle}</p>
                             </div>
                           </div>
                       )}
@@ -313,16 +327,14 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                                     alt="Retrofit Visualization" 
                                     className="max-h-full max-w-full object-contain"
                                 />
-                                
                                 <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-md flex items-center gap-2">
                                     <Layers className="w-3.5 h-3.5 text-purple-300" />
-                                    {viewAngle} AI Vision
+                                    {activeActions.size} measures applied
                                 </div>
                             </div>
                           </div>
                       )}
                       
-                      {/* Comparison / State Overlay */}
                       <div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
                           <button
                               onMouseDown={() => setShowComparison(true)}
@@ -335,24 +347,18 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                               {showComparison ? <Eye className="w-3.5 h-3.5 text-purple-600" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
                               {showComparison ? 'Viewing Source' : 'Hold to Compare'}
                           </button>
-                          
-                          {!showComparison && generatedImage && (
-                              <div className="bg-white/90 text-purple-800 px-3 py-1.5 rounded-lg text-[10px] font-bold backdrop-blur-md shadow-sm border border-purple-100">
-                                  AI Render Applied
-                              </div>
-                          )}
                       </div>
                   </div>
                   
                   {generatedImage && (
                       <div className="h-16 border-t border-slate-200 bg-white flex items-center justify-between px-6 z-10 shrink-0">
                             <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                Render Complete
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Combined Strategy Rendered
                             </div>
                             <a 
                               href={`data:image/jpeg;base64,${generatedImage}`} 
-                              download={`retrofit-${recommendationTitle.toLowerCase().replace(/\s/g, '-')}-${viewAngle}.jpg`}
+                              download={`retrofit-strategy-${activeActions.size}-measures.jpg`}
                               className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-colors"
                             >
                               Download Render

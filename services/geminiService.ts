@@ -3,7 +3,6 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult, UserType, SourceDoc, EPCRating, HomeProfile, ComparisonData, UsageBreakdown } from '../types';
 import { generateDerivedUsageData } from '../utils';
 
-// Switching to Gemini 2.5 Flash for faster inference speeds while maintaining high multimodal capability
 const MODEL_NAME = 'gemini-3-flash-preview';
 const IMAGE_MODEL_NAME = 'gemini-2.5-flash-image';
 const PRO_IMAGE_MODEL_NAME = 'gemini-3-pro-image-preview';
@@ -34,6 +33,7 @@ CATEGORY: APPLIANCES & LIFESTYLE
 - Lighting: "https://energysavingtrust.org.uk/advice/lighting/"
 - Smart Meters: "https://energysavingtrust.org.uk/advice/guide-to-smart-meters/"
 - Fixing Damp & Condensation: "https://energysavingtrust.org.uk/advice/fixing-damp-and-condensation/"
+- Water Saving: "https://energysavingtrust.org.uk/advice/saving-water-home/"
 
 CATEGORY: RENEWABLES
 - Solar Panels (PV): "https://energysavingtrust.org.uk/advice/solar-panels/"
@@ -325,6 +325,11 @@ export const analyzeHomeData = async (
        - 'explanation' must justify how the AI reached the conclusion (e.g. "We detected evening peaks in your Nov-Jan bills which align with typical high-tariff demand periods in the UK Power Networks area").
     6. Spatial Layout Inference.
     7. Citations: Use VERIFIED SOURCE LIBRARY URLs.
+    8. EXPANDED ANALYSIS: Specifically look for:
+       - **Water Efficiency**: Aerators, eco-showerheads, cistern displacement.
+       - **Lighting**: Transition to LED, occupancy sensors.
+       - **Smart Home**: Smart TRVs, smart plugs for standby load reduction.
+       - **Renewables**: Battery storage optimization.
 
     === VERIFIED SOURCE LIBRARY ===
     ${VERIFIED_SOURCES_LIBRARY}

@@ -10,7 +10,7 @@ import Demo3DView from './Demo3DView';
 import { updateBenchmark } from '../services/geminiService';
 import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen, Globe, UserCheck, Activity, Info, Brain } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen, Globe, UserCheck, Activity, Info, Brain, Lightbulb, Droplets, Smartphone } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -90,7 +90,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const [data, setData] = useState<AnalysisResult>(initialData);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isVisualizerOpen, setIsVisualizerOpen] = useState(false);
-  const [visualizerTarget, setVisualizerTarget] = useState<{title: string, category: string} | null>(null);
   const [mapView, setMapView] = useState<'satellite' | 'roadmap' | 'plan'>('plan');
   const [zoomLevel, setZoomLevel] = useState<number>(20);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -126,12 +125,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       } catch (error) {
           alert("Could not update benchmark comparison.");
       }
-  };
-
-  const openVisualizer = (e: React.MouseEvent, rec: Recommendation) => {
-      e.stopPropagation();
-      setVisualizerTarget({ title: rec.title, category: rec.category });
-      setIsVisualizerOpen(true);
   };
 
   const handleMapSwitch = (type: 'satellite' | 'roadmap' | 'plan') => {
@@ -215,6 +208,10 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       case 'Insulation': return <Home className="w-5 h-5 text-indigo-500" />;
       case 'Heating': return <Thermometer className="w-5 h-5 text-rose-500" />;
       case 'Solar': return <Zap className="w-5 h-5 text-amber-500" />;
+      case 'Windows': return <Layers className="w-5 h-5 text-blue-500" />;
+      case 'Lighting': return <Lightbulb className="w-5 h-5 text-yellow-500" />;
+      case 'Water': return <Droplets className="w-5 h-5 text-cyan-500" />;
+      case 'Smart Home': return <Smartphone className="w-5 h-5 text-purple-500" />;
       default: return <AlertCircle className="w-5 h-5 text-slate-500" />;
     }
   };
@@ -225,8 +222,26 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       const match = part.match(/\[(\d+)\]/);
       if (match) {
         const index = parseInt(match[1]);
+        const sourceUrl = data.dataSources && data.dataSources[index - 1] ? data.dataSources[index - 1].url : null;
+        
         return (
-          <a key={i} href={`#ref-${index}`} className="text-emerald-600 font-bold hover:underline cursor-pointer inline-block mx-0.5">{part}</a>
+          <a 
+            key={i} 
+            href={sourceUrl || `#ref-${index}`} 
+            target={sourceUrl ? "_blank" : "_self"}
+            rel="noopener noreferrer"
+            onClick={(e) => {
+                if (!sourceUrl) {
+                    e.preventDefault();
+                    scrollToPanel(`ref-${index}`);
+                }
+            }}
+            className="text-emerald-600 font-bold hover:underline cursor-pointer inline-flex items-center gap-0.5 mx-0.5"
+            title={sourceUrl ? "Open Source Document" : "View Reference"}
+          >
+            {part}
+            {sourceUrl && <ExternalLink className="w-2.5 h-2.5 opacity-50" />}
+          </a>
         );
       }
       return <span key={i}>{part}</span>;
@@ -361,11 +376,27 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       </div>
       
       <HomeProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} currentProfile={data.homeProfile || {propertyType: 'Flat', bedrooms: 1, occupants: 2, homeHours: 'Evenings & Weekends', heatingType: 'Gas Boiler', hasEV: false, appliances: []}} onSave={handleProfileSave} />
-      <RetrofitVisualizer isOpen={isVisualizerOpen} onClose={() => setIsVisualizerOpen(false)} homeImages={homeImages} recommendationTitle={visualizerTarget?.title || ''} recommendationCategory={visualizerTarget?.category || ''} analysisResult={data} isDemoMode={isDemoMode} />
+      <RetrofitVisualizer 
+        isOpen={isVisualizerOpen} 
+        onClose={() => setIsVisualizerOpen(false)} 
+        homeImages={homeImages} 
+        recommendations={data.recommendations}
+        analysisResult={data} 
+        isDemoMode={isDemoMode} 
+      />
       {data.usageBreakdown && <UsageTrendsChart data={data.usageBreakdown} currency={data.currency} />}
 
       <div>
-        <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center gap-2"><Zap className="w-6 h-6 text-emerald-500" />Recommended Actions<span className="text-sm font-normal text-slate-400 ml-2">Select actions to update projected savings</span></h3>
+        <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Zap className="w-6 h-6 text-emerald-500" />Recommended Actions<span className="text-sm font-normal text-slate-400 ml-2">Select actions to update projected savings</span></h3>
+            <button 
+                onClick={() => setIsVisualizerOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-purple-200 transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+                <Sparkles className="w-4 h-4" />
+                Visualize Strategy
+            </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {data.recommendations.map((rec, idx) => (
             <div key={idx} id={`rec-${idx}`} className={`bg-white rounded-2xl p-4 shadow-sm border transition-all flex flex-col group cursor-pointer relative ${selectedRecs.has(idx) ? 'border-emerald-200 ring-1 ring-emerald-50' : 'border-slate-200 opacity-70 grayscale-[0.5] hover:opacity-100'}`} onClick={() => toggleRec(idx)}>
@@ -373,7 +404,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
               <div className="flex justify-between items-start mb-2 pr-10"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg transition-colors ${selectedRecs.has(idx) ? 'bg-slate-50 group-hover:bg-emerald-50' : 'bg-slate-50'}`}>{getCategoryIcon(rec.category)}</div><div><h4 className={`font-bold transition-colors ${selectedRecs.has(idx) ? 'text-slate-800' : 'text-slate-600'}`}>{rec.title}</h4><span className="text-xs font-medium text-slate-500">{rec.category}</span></div></div></div>
               <div className="mb-2 flex items-center gap-2"><span className={`px-2 py-1 rounded-md text-xs font-semibold border inline-flex items-center justify-center ${getImpactColor(rec.impact)}`}>{rec.impact} Impact</span><span className={`px-2 py-1 rounded-md text-xs font-semibold border inline-flex items-center justify-center ${getCostBadgeColor(rec.estimatedCost)}`}>{getCostLabel(rec.estimatedCost)}</span></div>
               <div className="text-slate-600 text-sm mb-2 min-h-[40px] flex-grow">{renderTextWithCitations(rec.description)}</div>
-              <div className={`pt-2 border-t mt-auto transition-colors ${selectedRecs.has(idx) ? 'border-slate-100' : 'border-slate-100/50'}`}><div className="flex items-end justify-between gap-2"><div className="flex gap-4 sm:gap-6"><div><p className="text-slate-400 text-[10px] uppercase font-semibold tracking-wider mb-0.5">Est. Cost</p><p className="font-semibold text-slate-700 text-sm">{rec.estimatedCost}</p></div><div><p className="text-slate-400 text-[10px] uppercase font-semibold tracking-wider mb-0.5">Annual Savings</p><p className={`font-semibold text-sm transition-colors ${selectedRecs.has(idx) ? 'text-emerald-600' : 'text-slate-500'}`}>{rec.estimatedAnnualSavings}</p></div></div><div className="flex items-center gap-2"><button onClick={(e) => openVisualizer(e, rec)} className="flex items-center gap-1.5 text-xs font-bold text-purple-600 bg-purple-50 border border-purple-100 px-3 py-1.5 rounded-lg hover:bg-purple-100 hover:border-purple-200 transition-all"><Sparkles className="w-3.5 h-3.5" /><span className="hidden sm:inline">Visualize</span></button><button onClick={(e) => { e.stopPropagation(); scrollToPanel('savings-panel'); }} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-all"><LineChart className="w-3.5 h-3.5" /><span className="hidden sm:inline">Impact</span></button></div></div></div>
+              <div className={`pt-2 border-t mt-auto transition-colors ${selectedRecs.has(idx) ? 'border-slate-100' : 'border-slate-100/50'}`}><div className="flex items-end justify-between gap-2"><div className="flex gap-4 sm:gap-6"><div><p className="text-slate-400 text-[10px] uppercase font-semibold tracking-wider mb-0.5">Est. Cost</p><p className="font-semibold text-slate-700 text-sm">{rec.estimatedCost}</p></div><div><p className="text-slate-400 text-[10px] uppercase font-semibold tracking-wider mb-0.5">Annual Savings</p><p className={`font-semibold text-sm transition-colors ${selectedRecs.has(idx) ? 'text-emerald-600' : 'text-slate-500'}`}>{rec.estimatedAnnualSavings}</p></div></div><div className="flex items-center gap-2"><button onClick={(e) => { e.stopPropagation(); scrollToPanel('savings-panel'); }} className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-700 transition-all"><LineChart className="w-3.5 h-3.5" /><span className="hidden sm:inline">Impact</span></button></div></div></div>
             </div>
           ))}
         </div>

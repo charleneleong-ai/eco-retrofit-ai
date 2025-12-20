@@ -7,7 +7,7 @@ export interface Recommendation {
   estimatedCost: string;
   estimatedAnnualSavings: string;
   impact: 'High' | 'Medium' | 'Low';
-  category: 'Insulation' | 'Heating' | 'Solar' | 'Behavioral' | 'Windows';
+  category: 'Insulation' | 'Heating' | 'Solar' | 'Behavioral' | 'Windows' | 'Lighting' | 'Water' | 'Smart Home';
 }
 
 export interface ComparisonFactor {
@@ -15,7 +15,7 @@ export interface ComparisonFactor {
   userValue: string;  // e.g. "1930s Semi", "2 Adults"
   localAvg: string;   // e.g. "1930-1950", "2.4 People"
   variance: string;   // e.g. "Match", "Higher", "Lower"
-  explanation?: string; // NEW: AI Reasoning for this specific inference
+  explanation?: string; // AI Reasoning for this specific inference
 }
 
 export interface HomeProfile {
@@ -89,7 +89,7 @@ export interface SourceDoc {
   url?: string;
 }
 
-// NEW: 3D Spatial Types
+// 3D Spatial Types
 export interface RoomFeature {
   type: 'furniture' | 'window' | 'door' | 'appliance';
   name: string; // "Sofa", "Bed", "Desk"
@@ -123,7 +123,7 @@ export interface AnalysisResult {
   epc?: EPCRating;
   sourceDocuments?: SourceDoc[];
   homeProfile?: HomeProfile; 
-  spatialLayout?: SpatialLayout; // Added for dynamic 3D generation
+  spatialLayout?: SpatialLayout; 
 }
 
 export interface FileData {
@@ -132,17 +132,17 @@ export interface FileData {
   data: string; // Base64
 }
 
-// NEW: A snapshot of a specific analysis state
+// A snapshot of a specific analysis state
 export interface AnalysisVersion {
   versionId: string;
   timestamp: number;
   result: AnalysisResult;
-  inputFiles: FileData[]; // Files associated with this specific run (renamed from billFiles to be generic)
+  inputFiles: FileData[]; 
   selectedRecommendationIndices?: number[];
-  note?: string; // e.g. "Initial Audit", "Added Video Walkthrough"
+  note?: string; 
 }
 
-// UPDATED: Container for history
+// Container for history
 export interface SavedAnalysis {
   id: string; // Persistent ID across versions
   createdAt: number;
