@@ -39,7 +39,6 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
   const [detailLevel, setDetailLevel] = useState<DetailLevel>('Standard');
 
   const demo3DRef = useRef<Demo3DViewHandle>(null);
-  const sidebar3DRef = useRef<Demo3DViewHandle>(null);
   
   // Cache key: combined actions sorted + view params
   const [renderCache, setRenderCache] = useState<Record<string, string>>({});
@@ -54,15 +53,6 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
           default: return 'perspective';
       }
   }, [viewAngle]);
-
-  const lastGeneratedRef = useRef<string>('');
-
-  // Automatically select the first recommendation if none are selected when opening
-  useEffect(() => {
-    if (isOpen && activeActions.size === 0 && recommendations.length > 0) {
-      setActiveActions(new Set([0]));
-    }
-  }, [isOpen, recommendations]);
 
   const toggleAction = (idx: number) => {
     const newSet = new Set(activeActions);
@@ -89,7 +79,6 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
         setError(null);
         setGeneratedImage(renderCache[cacheKey]);
         setIsLoading(false);
-        lastGeneratedRef.current = cacheKey;
         return;
     }
 
@@ -126,7 +115,6 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
       }));
       
       setGeneratedImage(result);
-      lastGeneratedRef.current = cacheKey;
     } catch (err) {
       console.error(err);
       setError("Could not generate visualization. Please try again.");
@@ -135,25 +123,9 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
     }
   }, [homeImages, selectedImageIndex, combinedTitle, viewAngle, detailLevel, renderCache, activeActions]);
 
-  useEffect(() => {
-    if (isOpen && (homeImages.length > 0 || isDemoMode) && activeActions.size > 0) {
-      const actionKey = Array.from(activeActions).sort().join(",");
-      const cacheKey = `${actionKey}|${viewAngle}|${detailLevel}`;
-      
-      if (lastGeneratedRef.current !== cacheKey) {
-        if (renderCache[cacheKey]) {
-            handleGenerate();
-        } else {
-            const timer = setTimeout(() => handleGenerate(), 800);
-            return () => clearTimeout(timer);
-        }
-      }
-    }
-  }, [isOpen, homeImages.length, isDemoMode, combinedTitle, viewAngle, detailLevel, handleGenerate, renderCache, activeActions]);
-
+  // Handle cleanup on close
   useEffect(() => {
     if (!isOpen) {
-      lastGeneratedRef.current = '';
       setGeneratedImage(null);
       setError(null);
       setIsLoading(false);
@@ -164,34 +136,63 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm animate-fade-in p-4">
-      <div className="bg-white rounded-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl animate-fade-in-up flex flex-col">
+      {/* Modal Container with explicit height to ensure internal scrolling works */}
+      <div className="bg-white rounded-2xl w-full max-w-6xl h-[85vh] overflow-hidden shadow-2xl animate-fade-in-up flex flex-col">
         
-        {/* Header */}
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <Box className="w-5 h-5 text-purple-600" />
-              Retrofit Strategy Visualizer
-            </h2>
-            <p className="text-sm text-slate-500 flex items-center gap-1.5">
-              Active Measures: <span className="font-semibold text-slate-700">{activeActions.size} selected</span>
-            </p>
+        {/* Header - Top Bar with Action Button */}
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0 z-20">
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Box className="w-5 h-5 text-purple-600" />
+                Retrofit Strategy Visualizer
+              </h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                AI Structural Simulation
+              </p>
+            </div>
+            <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
+            <div className="hidden sm:flex items-center gap-2 bg-purple-100/50 px-3 py-1.5 rounded-lg border border-purple-100">
+               <Layers className="w-4 h-4 text-purple-600" />
+               <span className="text-xs font-bold text-purple-700">{activeActions.size} Measures Selected</span>
+            </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-            <X className="w-5 h-5 text-slate-500" />
-          </button>
+
+          <div className="flex items-center gap-3">
+            <Button 
+                onClick={handleGenerate} 
+                disabled={isLoading || activeActions.size === 0} 
+                className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-200 px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transform active:scale-95 transition-all"
+            >
+                {isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                    <Sparkles className="w-4 h-4" />
+                )}
+                {isLoading ? 'Synthesizing...' : 'Apply Strategy'}
+            </Button>
+            
+            <div className="h-8 w-px bg-slate-200 mx-1"></div>
+            
+            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+              <X className="w-5 h-5 text-slate-500" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row h-full relative">
+        {/* Content Body */}
+        <div className="flex-1 overflow-hidden flex flex-col md:flex-row h-full relative bg-slate-50">
             
               {/* Left: Strategy Builder Sidebar */}
-              <div className="lg:w-80 border-r border-slate-200 bg-white flex flex-col z-10 shadow-lg h-full overflow-hidden">
-                  <div className="p-4 flex-1 overflow-y-auto custom-scrollbar">
+              {/* md:h-full ensures full height on desktop. h-[40%] on mobile gives space for render area. */}
+              <div className="md:w-80 w-full h-[40%] md:h-full border-b md:border-b-0 md:border-r border-slate-200 bg-white flex flex-col z-10 shadow-xl overflow-hidden shrink-0">
+                  <div className="p-5 flex-1 overflow-y-auto min-h-0">
                       
                       {/* 1. Measure Strategy */}
-                      <div className="mb-6">
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                              1. Select Measures to Visualise
+                      <div className="mb-8">
+                          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <span className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[10px] text-slate-500 font-black">1</span>
+                              Select Measures
                           </h3>
                           <div className="space-y-2">
                               {recommendations.map((rec, idx) => {
@@ -200,18 +201,18 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                                       <button
                                           key={idx}
                                           onClick={() => toggleAction(idx)}
-                                          className={`w-full text-left p-2.5 rounded-lg border transition-all flex items-start gap-2.5 ${
+                                          className={`w-full text-left p-3 rounded-xl border transition-all flex items-start gap-3 ${
                                               isActive 
-                                              ? 'bg-purple-50 border-purple-200 text-purple-900' 
+                                              ? 'bg-purple-50 border-purple-200 text-purple-900 shadow-sm' 
                                               : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
                                           }`}
                                       >
-                                          <div className={`mt-0.5 shrink-0 ${isActive ? 'text-purple-600' : 'text-slate-300'}`}>
-                                              {isActive ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                                          <div className={`mt-0.5 shrink-0 transition-colors ${isActive ? 'text-purple-600' : 'text-slate-300'}`}>
+                                              {isActive ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
                                           </div>
-                                          <div>
-                                              <p className="text-[11px] font-bold leading-tight">{rec.title}</p>
-                                              <p className="text-[9px] opacity-60 mt-0.5">{rec.category}</p>
+                                          <div className="min-w-0">
+                                              <p className="text-xs font-bold leading-tight truncate">{rec.title}</p>
+                                              <p className="text-[10px] opacity-60 mt-1 font-medium">{rec.category}</p>
                                           </div>
                                       </button>
                                   );
@@ -220,53 +221,57 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                       </div>
 
                       {/* 2. View Angle */}
-                      <div className="mb-6">
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                              2. View Angle
+                      <div className="mb-8">
+                          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <span className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[10px] text-slate-500 font-black">2</span>
+                              View Perspective
                           </h3>
-                          <div className="flex bg-slate-100 p-1 rounded-lg mb-2">
+                          <div className="grid grid-cols-2 gap-2 mb-2">
                               {(['Front Isometric', 'Top-Down Plan'] as ViewAngle[]).map(angle => (
                                   <button 
                                     key={angle}
                                     onClick={() => setViewAngle(angle)}
-                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${viewAngle === angle ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`py-2 text-[11px] font-bold rounded-lg border transition-all ${viewAngle === angle ? 'bg-purple-100 border-purple-200 text-purple-700' : 'bg-slate-50 border-transparent text-slate-500 hover:text-slate-700'}`}
                                   >
-                                      {angle === 'Front Isometric' ? 'Front' : 'Top Plan'}
+                                      {angle === 'Front Isometric' ? 'Isometric' : 'Top Plan'}
                                   </button>
                               ))}
                           </div>
                           <div className="flex gap-2">
                               <button 
                                 onClick={() => setViewAngle('Rotate Left')}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-bold transition-all ${viewAngle === 'Rotate Left' ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border text-[11px] font-bold transition-all ${viewAngle === 'Rotate Left' ? 'bg-purple-100 border-purple-200 text-purple-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
                               >
-                                  <RotateCcw className="w-3.5 h-3.5" /> 45° Left
+                                  <RotateCcw className="w-4 h-4" /> 45° L
                               </button>
                               <button 
                                 onClick={() => setViewAngle('Rotate Right')}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-bold transition-all ${viewAngle === 'Rotate Right' ? 'bg-purple-50 border-purple-200 text-purple-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border text-[11px] font-bold transition-all ${viewAngle === 'Rotate Right' ? 'bg-purple-100 border-purple-200 text-purple-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}
                               >
-                                  45° Right <RotateCw className="w-3.5 h-3.5" />
+                                  45° R <RotateCw className="w-4 h-4" />
                               </button>
                           </div>
                       </div>
 
                       {/* 3. Detail */}
-                      <div className="mb-6">
-                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">3. Granularity</h3>
+                      <div className="mb-8">
+                          <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                              <span className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[10px] text-slate-500 font-black">3</span>
+                              Granularity
+                          </h3>
                           <div className="space-y-2">
                               {(['Standard', 'High'] as DetailLevel[]).map(level => (
-                                  <label key={level} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${detailLevel === level ? 'bg-white border-purple-200 ring-1 ring-purple-100' : 'bg-slate-50 border-transparent opacity-70 hover:opacity-100'}`}>
+                                  <label key={level} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${detailLevel === level ? 'bg-white border-purple-200 ring-1 ring-purple-100 shadow-sm' : 'bg-slate-50 border-transparent opacity-70 hover:opacity-100'}`}>
                                     <input 
-                                        type="radio" name="detail" className="accent-purple-600" 
+                                        type="radio" name="detail" className="accent-purple-600 w-4 h-4" 
                                         checked={detailLevel === level} 
                                         onChange={() => setDetailLevel(level)}
                                     />
                                     <div>
                                         <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                                            {level === 'High' ? <>High Fidelity <span className="bg-purple-100 text-purple-700 px-1 rounded text-[9px]">HD</span></> : 'Standard Model'}
+                                            {level === 'High' ? <>High Fidelity <span className="bg-purple-100 text-purple-700 px-1.5 rounded text-[9px] font-black uppercase">HD</span></> : 'Fast Draft'}
                                         </p>
-                                        <p className="text-[10px] text-slate-500">{level === 'High' ? 'Granular textures, realistic lighting.' : 'Fast generation, smooth surfaces.'}</p>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">{level === 'High' ? 'Ray-traced lighting.' : 'Quick structure scan.'}</p>
                                     </div>
                                   </label>
                               ))}
@@ -275,25 +280,18 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
 
                   </div>
                   
-                  <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0">
-                      <Button 
-                        onClick={handleGenerate} 
-                        disabled={isLoading || activeActions.size === 0} 
-                        className="w-full bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200"
-                      >
-                          {isLoading ? 'Processing...' : 'Apply Strategy'}
-                      </Button>
+                  <div className="p-4 bg-slate-50 border-t border-slate-100 text-[10px] text-center text-slate-400 font-medium">
+                      Select measures and click "Apply" to render changes.
                   </div>
               </div>
 
               {/* Right: Render Area */}
-              <div className="flex-1 bg-slate-100/50 flex flex-col relative overflow-hidden">
-                  <div className="flex-1 flex items-center justify-center p-6 relative">
+              <div className="flex-1 flex flex-col relative overflow-hidden h-[60%] md:h-full">
+                  <div className="flex-1 flex items-center justify-center p-8 relative">
                       
                       {/* Interactive Context */}
                       <div className={`absolute inset-0 z-0 transition-opacity duration-500 ${generatedImage && !showComparison ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                           <Demo3DView 
-                              ref={demo3DRef}
                               analysisData={analysisResult} 
                               isDemoMode={isDemoMode} 
                               minimalUI={true} 
@@ -302,66 +300,75 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                       </div>
 
                       {isLoading && (
-                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm">
-                            <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center border border-purple-100 max-w-xs text-center">
-                                <div className="w-12 h-12 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-4"></div>
-                                <p className="text-purple-800 font-bold mb-1">Synthesizing Retrofit...</p>
-                                <p className="text-[10px] text-purple-600/70">{combinedTitle}</p>
+                          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/60 backdrop-blur-md animate-fade-in">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center border border-purple-100 max-w-sm text-center">
+                                <div className="w-16 h-16 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin mb-6"></div>
+                                <h4 className="text-purple-900 font-black text-lg mb-2">Simulating Strategy...</h4>
+                                <p className="text-xs text-purple-600/70 leading-relaxed px-4">{combinedTitle}</p>
+                                <div className="mt-6 flex items-center gap-2">
+                                   <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce"></div>
+                                   <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce [animation-delay:0.2s]"></div>
+                                   <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce [animation-delay:0.4s]"></div>
+                                </div>
                             </div>
                           </div>
                       )}
 
                       {error && (
-                          <div className="text-center p-8 bg-white rounded-2xl shadow-lg border border-red-100 max-w-sm relative z-30">
-                              <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-                              <p className="text-slate-800 font-bold mb-1">Render Failed</p>
-                              <p className="text-sm text-slate-500">{error}</p>
+                          <div className="text-center p-8 bg-white rounded-2xl shadow-lg border border-red-100 max-w-sm relative z-30 animate-fade-in">
+                              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+                              <h4 className="text-slate-900 font-black mb-2">Analysis Interrupted</h4>
+                              <p className="text-sm text-slate-500 leading-relaxed">{error}</p>
+                              <Button onClick={handleGenerate} className="mt-6 bg-slate-900 text-white w-full">Try Again</Button>
                           </div>
                       )}
 
                       {generatedImage && !showComparison && (
                           <div className="relative w-full h-full flex items-center justify-center z-10 group animate-fade-in">
-                            <div className="relative rounded-lg overflow-hidden shadow-2xl ring-1 ring-slate-900/5 max-h-full max-w-full">
+                            <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-slate-900/10 max-h-full max-w-full bg-white">
                                 <img 
                                     src={`data:image/jpeg;base64,${generatedImage}`} 
                                     alt="Retrofit Visualization" 
                                     className="max-h-full max-w-full object-contain"
                                 />
-                                <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-1.5 rounded-lg text-xs font-bold backdrop-blur-md flex items-center gap-2">
-                                    <Layers className="w-3.5 h-3.5 text-purple-300" />
-                                    {activeActions.size} measures applied
+                                <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-xl flex items-center gap-2 border border-white/20">
+                                    <Sparkles className="w-3 h-3 text-purple-400" />
+                                    AI Render Active
                                 </div>
                             </div>
                           </div>
                       )}
                       
-                      <div className="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+                      <div className="absolute bottom-6 right-6 z-20 flex flex-col items-end gap-3">
                           <button
                               onMouseDown={() => setShowComparison(true)}
                               onMouseUp={() => setShowComparison(false)}
                               onMouseLeave={() => setShowComparison(false)}
                               onTouchStart={() => setShowComparison(true)}
                               onTouchEnd={() => setShowComparison(false)}
-                              className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-xs font-bold shadow-lg border border-slate-200 flex items-center gap-2 transition-transform active:scale-95"
+                              className="bg-white/90 hover:bg-white text-slate-800 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-xl border border-slate-200 flex items-center gap-2.5 transition-all active:scale-95 backdrop-blur-md"
                           >
-                              {showComparison ? <Eye className="w-3.5 h-3.5 text-purple-600" /> : <EyeOff className="w-3.5 h-3.5 text-slate-400" />}
-                              {showComparison ? 'Viewing Source' : 'Hold to Compare'}
+                              {showComparison ? <Eye className="w-4 h-4 text-purple-600" /> : <EyeOff className="w-4 h-4 text-slate-400" />}
+                              {showComparison ? 'Viewing Structural Model' : 'Hold to View Original'}
                           </button>
                       </div>
                   </div>
                   
                   {generatedImage && (
                       <div className="h-16 border-t border-slate-200 bg-white flex items-center justify-between px-6 z-10 shrink-0">
-                            <div className="flex items-center gap-2 text-xs text-slate-500">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Combined Strategy Rendered
+                            <div className="flex items-center gap-3">
+                                <span className="flex h-3 w-3 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Combined Strategy Synthesized</span>
                             </div>
                             <a 
                               href={`data:image/jpeg;base64,${generatedImage}`} 
                               download={`retrofit-strategy-${activeActions.size}-measures.jpg`}
-                              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition-colors"
+                              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
                             >
-                              Download Render
+                              Download Concept
                             </a>
                       </div>
                   )}

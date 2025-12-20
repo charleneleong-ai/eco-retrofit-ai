@@ -394,7 +394,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                 className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-purple-200 transform hover:-translate-y-0.5 active:translate-y-0"
             >
                 <Sparkles className="w-4 h-4" />
-                Visualize Strategy
+                Visualise
             </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
