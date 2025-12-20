@@ -5,8 +5,6 @@ import { generateDerivedUsageData } from '../utils';
 // Helper to generate granular data from monthly totals
 const generateMockUsageData = () => {
   // Define split based on the logic: Gas high in winter, Elec consistent (~180-230 kwh)
-  // Costs approx: Elec 24p/kwh, Gas 7p/kwh + standing charges
-  
   const monthlyTotals = [
     { month: 'Dec 24', elecKwh: 168, gasKwh: 1395 }, 
     { month: 'Jan 25', elecKwh: 235, gasKwh: 1510 }, 
@@ -19,13 +17,12 @@ const generateMockUsageData = () => {
     { month: 'Aug 25', elecKwh: 123, gasKwh: 69 },   
     { month: 'Sep 25', elecKwh: 203, gasKwh: 325 },  
     { month: 'Oct 25', elecKwh: 213, gasKwh: 296 },  
-    { month: 'Nov 25', elecKwh: 220, gasKwh: 1180 }, // Projected Winter start
+    { month: 'Nov 25', elecKwh: 220, gasKwh: 1180 }, 
   ];
 
-  // Assumed avg unit rates for simplified cost calc
   const ELEC_RATE = 0.28; 
   const GAS_RATE = 0.07;
-  const STANDING_CHARGE = 20; // Approx monthly standing charge total
+  const STANDING_CHARGE = 20;
 
   return generateDerivedUsageData(monthlyTotals.map(m => {
       const elecCost = m.elecKwh * ELEC_RATE + (STANDING_CHARGE * 0.5);
@@ -45,17 +42,17 @@ const usageData = generateMockUsageData();
 
 export const MOCK_ANALYSIS_RESULT: AnalysisResult = {
   customerName: "Miss Charlene Leong",
-  address: "Flat 2, Parkchurch House 108, Grosvenor Avenue, London, N5 2NE",
+  address: "Flat 2, Parkchurch House, 108 Grosvenor Avenue, London, N5 2NE",
   auditDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
   currency: "£",
   currentMonthlyAvg: 110.41,
-  projectedMonthlyAvg: 93.85,
+  projectedMonthlyAvg: 90.15,
   summary: `
-Based on the analysis of your **OVO Energy** bills from December 2024 to November 2025, your total energy expenditure is approximately **£1,325 annually**. 
+Based on the analysis of your **OVO Energy** bills and visual audit, your home is estimated to have an **EPC Grade D rating (64 points)**. 
 
-Your energy usage follows a distinct **seasonal pattern**, with gas consumption peaking significantly in January (~1500 kWh) compared to August (~70 kWh). This indicates that **space heating is the primary driver of your costs**, accounting for over 65% of your winter bills. 
+With **2 occupants typically home in the evenings and weekends**, your usage follows a standard domestic pattern. However, your electricity baseload is elevated due to your high appliance count, specifically the **Tumble Dryer, Dishwasher, and Electric Hob**. Space heating via your **Gas Boiler** remains the primary cost driver, peaking at ~1,500 kWh in January. 
 
-Your electricity usage is relatively consistent, averaging around 190 kWh per month, which is slightly higher than average for a single-occupant flat [1]. As a renter in **London (N5)**, structural upgrades are likely off-limits, so this plan focuses on **heat retention** [2], **smart heating controls** [3], and efficient appliances to lower your bills without angering your landlord.
+While the property is a Victorian conversion, our AI audit has identified significant **efficiency gains** [3] through optimization measures like boiler flow temperature reduction and reflective technology, which can save you up to **£95 annually** while maintaining comfort during occupancy hours.
   `,
   epc: {
     current: "D",
@@ -87,66 +84,74 @@ Your electricity usage is relatively consistent, averaging around 190 kWh per mo
   homeProfile: {
     propertyType: "Flat",
     bedrooms: 1,
-    occupants: 1,
+    occupants: 2,
     homeHours: "Evenings & Weekends",
-    heatingType: "Gas Central",
+    heatingType: "Gas Boiler",
     hasEV: false,
-    appliances: ["Washing Machine", "Fridge Freezer", "Electric Oven"]
+    appliances: [
+      "Washing Machine", 
+      "Tumble Dryer", 
+      "Dishwasher", 
+      "Electric Oven", 
+      "Electric Hob", 
+      "Microwave", 
+      "Fridge Freezer"
+    ]
   },
   comparison: {
-    similarHomeAvgCost: 95,
+    similarHomeAvgCost: 98,
     areaAverageCost: 115,
-    efficientHomeCost: 78,
-    efficiencyPercentile: 45,
-    description: "Your home consumes 15% more energy than similar sized flats in London N5 [5]. The discrepancy is largely due to higher-than-average heating costs in winter months.",
+    efficientHomeCost: 82,
+    efficiencyPercentile: 55,
+    description: "Your home's efficiency is shaped by both its Victorian structure and your active living patterns. While the build performs 12% better than uninsulated stock, your electricity load is higher than 70% of local 1-bed flats due to the frequent use of high-intensity appliances like the tumble dryer during peak hours.",
     neighborhoodName: "Highbury, London (N5)",
     factors: [
-        { label: "Build Type", userValue: "Victorian Conversion", localAvg: "Victorian/Edwardian", variance: "Matches typical Highbury conservation stock." },
-        { label: "Size", userValue: "1 Bed", localAvg: "1-2 Bed", variance: "Compact footprint uses 15% less heat." },
-        { label: "Occupancy", userValue: "1 Adult", localAvg: "1.8 Adults", variance: "Lowers hot water demand significantly." },
-        { label: "Heating", userValue: "Gas Central", localAvg: "Gas Central", variance: "Standard system, upgrade to Heat Pump recommended." }
+        { label: "Regional Build Era", userValue: "Victorian (London)", localAvg: "1900-1920 Avg", variance: "Structural performance matches regional averages." },
+        { label: "Occupancy Density", userValue: "2 Adults (32sqm)", localAvg: "1.2 (Regional)", variance: "60% higher density increases incidental heat and hot water demand." },
+        { label: "Living Pattern", userValue: "Evenings & Weekends", localAvg: "Commuter Shift", variance: "Standard usage, but evening peaks align with high tariff periods." },
+        { label: "Appliance Load", userValue: "High (Dryer/Dish)", localAvg: "Essential only", variance: "Appliance baseline is 22% higher than similar 1-bed flats." },
+        { label: "Heating Preference", userValue: "Gas Boiler (Active)", localAvg: "Standard Controls", variance: "Usage peaks coincide with maximum heat loss hours." }
     ]
   },
   dataSources: [
-    { title: "OFGEM Average Usage Figures", url: "https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-use-explained" },
+    { title: "EPC Register - GOV.UK", url: "https://www.gov.uk/find-energy-certificate" },
     { title: "EST: Draught Proofing & Windows", url: "https://energysavingtrust.org.uk/advice/draught-proofing/" },
     { title: "EST: Thermostats & Controls", url: "https://energysavingtrust.org.uk/advice/thermostats-and-heating-controls/" },
     { title: "EST: Home Appliances", url: "https://energysavingtrust.org.uk/advice/home-appliances/" },
-    { title: "London Building Stock Model", url: "https://data.london.gov.uk/dataset/london-building-stock-model" },
-    { title: "EST: Fixing Damp & Condensation", url: "https://energysavingtrust.org.uk/advice/fixing-damp-and-condensation/" }
+    { title: "EST: Radiator Insulation Panels", url: "https://energysavingtrust.org.uk/advice/insulating-tanks-pipes-and-radiators/" }
   ],
   recommendations: [
     {
-      title: "Window Insulation Film",
-      description: "Apply clear thermal film to your single/double glazed windows. It acts as secondary glazing, reducing heat loss by up to 30% without structural changes [2].",
-      estimatedCost: "£20 - £40",
-      estimatedAnnualSavings: "£45 - £60",
-      impact: "High",
-      category: "Insulation"
-    },
-    {
-      title: "Smart Radiator Valves (TRVs)",
-      description: "Install smart valves on radiators to heat only the rooms you are using. Compatible with most boilers and easy to remove when you move out [3].",
-      estimatedCost: "£150 - £200",
-      estimatedAnnualSavings: "£70 - £90",
+      title: "Boiler Flow Temp Optimization",
+      description: "Since you use a Gas Boiler, reducing the flow temperature to 55°C will keep it in 'condensing mode' longer, saving up to 8% on gas [3].",
+      estimatedCost: "£0 (DIY)",
+      estimatedAnnualSavings: "£75 - £95",
       impact: "High",
       category: "Heating"
     },
     {
-      title: "Draft Proofing Strips",
-      description: "Seal gaps around doors and windows with self-adhesive foam strips. This is the cheapest way to stop cold air ingress [2].",
-      estimatedCost: "£10 - £15",
-      estimatedAnnualSavings: "£25 - £35",
+      title: "Window Insulation Film",
+      description: "While you have double glazing, the 'Average' EPC rating suggests heat loss. Applying thermal film acts as triple glazing without structural changes [2].",
+      estimatedCost: "£20 - £40",
+      estimatedAnnualSavings: "£40 - £55",
       impact: "Medium",
       category: "Insulation"
     },
     {
-      title: "Portable Induction Hob",
-      description: "Use a plug-in induction hob for daily cooking instead of the gas stove. It's more efficient and improves indoor air quality [4].",
-      estimatedCost: "£40 - £60",
-      estimatedAnnualSavings: "£30 - £50",
+      title: "Reflective Radiator Panels",
+      description: "Highbury Victorian walls are notoriously cold. Install reflective panels behind radiators on external walls to push heat back into the living space [5].",
+      estimatedCost: "£25 - £35",
+      estimatedAnnualSavings: "£25 - £40",
       impact: "Medium",
-      category: "Behavioral"
+      category: "Heating"
+    },
+    {
+      title: "Draft Proofing Strips",
+      description: "Apply self-adhesive foam strips to the front door and sash windows to stop 'average' rated glazing from letting in drafts [2].",
+      estimatedCost: "£10 - £15",
+      estimatedAnnualSavings: "£20 - £30",
+      impact: "Medium",
+      category: "Insulation"
     }
   ]
 };

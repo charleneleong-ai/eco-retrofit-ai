@@ -1,10 +1,9 @@
 
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
 import { Layers, Grid, Maximize, Home, Monitor, Bed, Bath, Move, Rotate3d, CheckCircle2, Info, Menu } from 'lucide-react';
 import { AnalysisResult, RoomData } from '../types';
 
-// Helper for texture creation (kept for labels)
 const createLabelTexture = (text: string) => {
     const canvas = document.createElement('canvas');
     canvas.width = 512; 
@@ -36,25 +35,44 @@ const createLabelTexture = (text: string) => {
 interface InteractiveApartmentViewProps {
     analysisData?: AnalysisResult;
     isDemoMode?: boolean;
+    highlightCategory?: string; // e.g. 'Windows', 'Heating'
+    initialView?: string;
+    minimalUI?: boolean;
+    forcedView?: string; // External control for Retrofit Visualizer sync
 }
 
-export default function InteractiveApartmentView({ analysisData, isDemoMode = false }: InteractiveApartmentViewProps) {
+export interface Demo3DViewHandle {
+    getSnapshot: () => string | null;
+}
+
+const InteractiveApartmentView = forwardRef<Demo3DViewHandle, InteractiveApartmentViewProps>(({ 
+    analysisData, 
+    isDemoMode = false, 
+    highlightCategory,
+    initialView = 'perspective',
+    minimalUI = false,
+    forcedView
+}, ref) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState('perspective');
+  const [view, setView] = useState(initialView);
   const [showGrid, setShowGrid] = useState(false);
   const [isHoveringLabel, setIsHoveringLabel] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
-  // Refs to track state inside event listeners/animation loop without stale closures
   const viewRef = useRef(view);
   const isDraggingLogicRef = useRef(false);
   
-  // Sync ref with state
+  // Sync internal view with forcedView prop
+  useEffect(() => {
+      if (forcedView) {
+          setView(forcedView);
+      }
+  }, [forcedView]);
+
   useEffect(() => {
       viewRef.current = view;
   }, [view]);
   
-  // THREE References
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -63,15 +81,25 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
   const labelSpritesRef = useRef<THREE.Sprite[]>([]);
   const frameIdRef = useRef<number>(0);
   
-  // Camera Orbit State
   const cameraState = useRef({ r: 24, theta: Math.PI / 4, phi: Math.PI / 3.5, target: new THREE.Vector3(0, 1.5, 0) });
   const dragStart = useRef({ x: 0, y: 0 });
   
-  // Targets for animation smooth damping
   const targetCamPos = useRef(new THREE.Vector3(14, 10, 14));
   const targetLookAt = useRef(new THREE.Vector3(0, 1.5, 0));
 
-  // --- MESH HELPERS ---
+  // Expose snapshot functionality to parent
+  useImperativeHandle(ref, () => ({
+    getSnapshot: () => {
+        if (rendererRef.current && cameraRef.current && sceneRef.current) {
+            // Re-render immediately to ensure the buffer is fresh before capturing
+            rendererRef.current.render(sceneRef.current, cameraRef.current);
+            const dataUrl = rendererRef.current.domElement.toDataURL('image/jpeg', 0.8);
+            return dataUrl.split(',')[1];
+        }
+        return null;
+    }
+  }));
+
   const addMesh = (geo: THREE.BufferGeometry, mat: THREE.Material, x:number, y:number, z:number, rx:number=0, ry:number=0, rz:number=0, parent: THREE.Object3D) => {
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(x, y, z);
@@ -113,7 +141,6 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
   useEffect(() => {
     if (!mountRef.current) return;
     
-    // Cleanup
     if (rendererRef.current) {
         try {
             mountRef.current.removeChild(rendererRef.current.domElement);
@@ -134,7 +161,12 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     camera.position.set(14, 10, 14);
     cameraRef.current = camera;
     
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({ 
+        antialias: true, 
+        alpha: true, 
+        powerPreference: "high-performance",
+        preserveDrawingBuffer: true // Required for canvas capture
+    });
     renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -143,7 +175,6 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
     
-    // ==== LIGHTING ====
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
     
@@ -170,104 +201,84 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     const woodMat = new THREE.MeshStandardMaterial({ color: 0xc19a6b, roughness: 0.7, metalness: 0.1 });
     const greyMat = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 0.6, metalness: 0.15 });
     const whiteMat = new THREE.MeshStandardMaterial({ color: 0xfcfcfc, roughness: 0.3, metalness: 0.1 });
+    
+    // Highlight Material
+    const highlightMat = new THREE.MeshStandardMaterial({ 
+        color: 0x6366f1, 
+        emissive: 0x4f46e5, 
+        emissiveIntensity: 0.5, 
+        roughness: 0.2, 
+        metalness: 0.1 
+    });
 
-    // Grid Helper
+    const getMaterial = (baseMat: THREE.Material, type: string) => {
+        if (!highlightCategory) return baseMat;
+        const cat = highlightCategory.toLowerCase();
+        
+        // Windows Logic
+        if ((cat.includes('window') || cat.includes('glazing')) && type === 'window') return highlightMat;
+        
+        // Heating Logic
+        if ((cat.includes('heat') || cat.includes('thermostat') || cat.includes('valve') || cat.includes('boiler')) && type === 'heating') return highlightMat;
+        
+        // Insulation Logic
+        if (cat.includes('insulation') && type === 'external-wall') return highlightMat;
+        
+        // Appliance/Behavioral Logic
+        if ((cat.includes('appliance') || cat.includes('behavior')) && type === 'appliance') return highlightMat;
+
+        return baseMat;
+    }
+
     const gridHelper = new THREE.GridHelper(40, 40, 0xcccccc, 0xe8e8e8);
     gridHelper.position.y = 0.01;
     gridHelper.visible = showGrid;
     scene.add(gridHelper);
 
-    // --- SCENE GENERATION LOGIC ---
-
     const renderDynamicScene = (rooms: RoomData[]) => {
         let currentX = 0;
         let maxDepth = 0;
         
-        // 1. Pre-calculate layout bounds to determine foundation size
         rooms.forEach(r => {
              maxDepth = Math.max(maxDepth, r.dimensions.depth);
         });
         const safeMaxDepth = Math.max(3, maxDepth * 0.8);
 
-        // 2. Render Rooms as a contiguous block (No Spacing)
         rooms.forEach((room, index) => {
             const w = Math.max(3, room.dimensions.width * 0.8);
             const d = Math.max(3, room.dimensions.depth * 0.8);
-            const h = 2.8; // Standard ceiling height
+            const h = 2.8; 
             
-            // Floor - align all rooms to back wall (z=0) for a "corridor" linear layout
             addMesh(new THREE.PlaneGeometry(w, d), floorMat, currentX + w/2, 0.02, d/2, -Math.PI/2, 0, 0, scene);
-            
-            // Walls construction
-            // Back Wall (Continuous exterior line)
-            addMesh(new THREE.PlaneGeometry(w, h), wallMat, currentX + w/2, h/2, 0, 0, 0, 0, scene); 
-            
-            // Left Wall (Draw for first room OR as partition)
-            // Note: We always draw left wall for current room, effectively creating partitions
+            addMesh(new THREE.PlaneGeometry(w, h), getMaterial(wallMat, 'external-wall'), currentX + w/2, h/2, 0, 0, 0, 0, scene); 
             addMesh(new THREE.PlaneGeometry(d, h), wallMat, currentX, h/2, d/2, 0, Math.PI/2, 0, scene);
-            
-            // Right Wall (Only for the very last room to close the building)
             if (index === rooms.length - 1) {
                  addMesh(new THREE.PlaneGeometry(d, h), wallMat, currentX + w, h/2, d/2, 0, -Math.PI/2, 0, scene);
             }
-
-            // Cutaway Front "Lip" (Visual indication of wall without blocking view)
             addMesh(new THREE.BoxGeometry(w, 0.2, 0.2), wallMat, currentX + w/2, 0.1, d, 0, 0, 0, scene);
+            if (!minimalUI) addLabel(room.name, currentX + w/2, 2.5, d/2, room.type, scene);
 
-            // Label
-            addLabel(room.name, currentX + w/2, 2.5, d/2, room.type, scene);
-
-            // Furniture Generation
             room.features?.forEach(feat => {
-                // Relative positioning inside the room
                 let fx = currentX + w/2; 
                 let fz = d/2;
-                
-                // Simple auto-layout logic
                 if (feat.position === 'wall-back') { fz = 0.8; }
                 if (feat.position === 'wall-left') { fx = currentX + 0.8; }
                 if (feat.position === 'wall-right') { fx = currentX + w - 0.8; }
                 if (feat.position === 'corner') { fx = currentX + 0.8; fz = 0.8; }
 
+                const isHeating = feat.name.toLowerCase().includes('radiator') || feat.name.toLowerCase().includes('heater') || feat.name.toLowerCase().includes('boiler');
+                const isWindow = feat.type === 'window';
+                const matType = isHeating ? 'heating' : isWindow ? 'window' : feat.type === 'appliance' ? 'appliance' : 'furniture';
+
                 if (feat.type === 'furniture' || feat.name.toLowerCase().includes('sofa') || feat.name.toLowerCase().includes('bed')) {
-                    if (feat.name.toLowerCase().includes('bed')) {
-                        addMesh(new THREE.BoxGeometry(1.8, 0.5, 2), woodMat, fx, 0.25, fz, 0, 0, 0, scene);
-                        addMesh(new THREE.BoxGeometry(1.7, 0.2, 1.9), new THREE.MeshStandardMaterial({color: 0xc43030}), fx, 0.6, fz, 0, 0, 0, scene); 
-                    } else if (feat.name.toLowerCase().includes('sofa')) {
-                        addMesh(new THREE.BoxGeometry(2, 0.5, 0.8), greyMat, fx, 0.25, fz, 0, 0, 0, scene);
-                        addMesh(new THREE.BoxGeometry(2, 0.6, 0.2), greyMat, fx, 0.5, fz - 0.3, 0, 0, 0, scene);
-                    } else if (feat.name.toLowerCase().includes('desk')) {
-                        addMesh(new THREE.BoxGeometry(1.5, 0.1, 0.7), woodMat, fx, 0.75, fz, 0, 0, 0, scene);
-                        addMesh(new THREE.BoxGeometry(0.1, 0.7, 0.1), whiteMat, fx-0.6, 0.35, fz-0.3, 0, 0, 0, scene);
-                        addMesh(new THREE.BoxGeometry(0.1, 0.7, 0.1), whiteMat, fx+0.6, 0.35, fz-0.3, 0, 0, 0, scene);
-                    } else {
-                        addMesh(new THREE.BoxGeometry(1, 0.5, 1), whiteMat, fx, 0.25, fz, 0, 0, 0, scene);
-                    }
+                   addMesh(new THREE.BoxGeometry(1, 0.5, 1), getMaterial(whiteMat, matType), fx, 0.25, fz, 0, 0, 0, scene);
                 } else if (feat.type === 'appliance' || room.type === 'kitchen') {
-                     if (feat.name.toLowerCase().includes('fridge')) {
-                         addMesh(new THREE.BoxGeometry(0.6, 1.8, 0.6), new THREE.MeshStandardMaterial({color: 0xcccccc}), fx, 0.9, fz, 0, 0, 0, scene);
-                     } else {
-                         addMesh(new THREE.BoxGeometry(1, 0.9, 0.6), greyMat, fx, 0.45, fz, 0, 0, 0, scene);
-                     }
+                   addMesh(new THREE.BoxGeometry(1, 0.9, 0.6), getMaterial(greyMat, matType), fx, 0.45, fz, 0, 0, 0, scene);
                 }
             });
-
-            // Default props if empty features
-            if (!room.features || room.features.length === 0) {
-                if (room.type === 'bedroom') {
-                    addMesh(new THREE.BoxGeometry(1.6, 0.5, 2), woodMat, currentX + w/2, 0.25, d/2, 0, 0, 0, scene);
-                }
-                if (room.type === 'kitchen') {
-                    addMesh(new THREE.BoxGeometry(w-1, 0.9, 0.6), greyMat, currentX + w/2, 0.45, 0.5, 0, 0, 0, scene);
-                }
-            }
-
-            // Move X pointer for next room (tight packing)
             currentX += w;
         });
         
-        // 3. Unified Foundation/Base (The Plinth)
-        // Create a solid base under the entire apartment strip to visually bind it
         const totalWidth = currentX;
         const baseGeo = new THREE.BoxGeometry(totalWidth + 1, 0.2, safeMaxDepth + 1); 
         const baseMesh = new THREE.Mesh(baseGeo, new THREE.MeshStandardMaterial({ color: 0xdddddd }));
@@ -275,13 +286,10 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         baseMesh.receiveShadow = true;
         scene.add(baseMesh);
         
-        // Center camera roughly
         const centerX = totalWidth / 2;
         const centerZ = safeMaxDepth / 2;
         cameraState.current.target.set(centerX, 0, centerZ);
         targetLookAt.current.set(centerX, 0, centerZ);
-        
-        // Adjust initial camera position
         targetCamPos.current.set(centerX + 10, 12, centerZ + 12);
     };
 
@@ -292,91 +300,74 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         addMesh(new THREE.PlaneGeometry(5, 5), floorMat, -6, 0, 7.5, -Math.PI/2, 0, 0, scene);
         addMesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.3, metalness: 0.2 }), 3, 0, 8.5, -Math.PI/2, 0, 0, scene);
 
-        // CEILINGS
-        addMesh(new THREE.PlaneGeometry(12, 10), ceilingMat, 0, 3, 0, Math.PI/2, 0, 0, scene);
-        addMesh(new THREE.PlaneGeometry(3, 5), ceilingMat, -1, 3, 7.5, Math.PI/2, 0, 0, scene);
-        addMesh(new THREE.PlaneGeometry(5, 5), ceilingMat, -6, 3, 7.5, Math.PI/2, 0, 0, scene);
-        addMesh(new THREE.PlaneGeometry(3, 3), ceilingMat, 3, 3, 8.5, Math.PI/2, 0, 0, scene);
-
         // EXTERIOR WALLS
-        addMesh(new THREE.PlaneGeometry(12, 3), wallMat, 0, 1.5, -5, 0, 0, 0, scene); // Back
-        addMesh(new THREE.PlaneGeometry(15, 3), wallMat, -8.5, 1.5, 2.5, 0, Math.PI/2, 0, scene); // Left
+        addMesh(new THREE.PlaneGeometry(12, 3), getMaterial(wallMat, 'external-wall'), 0, 1.5, -5, 0, 0, 0, scene); // Back
+        addMesh(new THREE.PlaneGeometry(15, 3), getMaterial(wallMat, 'external-wall'), -8.5, 1.5, 2.5, 0, Math.PI/2, 0, scene); // Left
         
-        // Right Wall (Complex with Window)
-        addMesh(new THREE.PlaneGeometry(10, 0.8), wallMat, 6, 2.6, 0, 0, -Math.PI/2, 0, scene); // Top
-        addMesh(new THREE.PlaneGeometry(10, 1), wallMat, 6, 0.5, 0, 0, -Math.PI/2, 0, scene); // Bottom
-        addMesh(new THREE.PlaneGeometry(2.5, 3), wallMat, 6, 1.5, -3.75, 0, -Math.PI/2, 0, scene); // Left of window
-        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 6, 1.5, 5.5, 0, -Math.PI/2, 0, scene); // Right of window
+        addMesh(new THREE.PlaneGeometry(10, 0.8), getMaterial(wallMat, 'external-wall'), 6, 2.6, 0, 0, -Math.PI/2, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(10, 1), getMaterial(wallMat, 'external-wall'), 6, 0.5, 0, 0, -Math.PI/2, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(2.5, 3), getMaterial(wallMat, 'external-wall'), 6, 1.5, -3.75, 0, -Math.PI/2, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(5, 3), getMaterial(wallMat, 'external-wall'), 6, 1.5, 5.5, 0, -Math.PI/2, 0, scene);
 
-        // Window & Shutters
-        addMesh(new THREE.BoxGeometry(0.15, 2.2, 2.5), whiteMat, 5.93, 1.5, -1, 0, 0, 0, scene); // Frame
-        addMesh(new THREE.PlaneGeometry(2.3, 2), new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }), 5.92, 1.5, -1, 0, -Math.PI/2, 0, scene); // Glass
+        // Window & Boiler Highlight
+        addMesh(new THREE.BoxGeometry(0.15, 2.2, 2.5), getMaterial(whiteMat, 'window'), 5.93, 1.5, -1, 0, 0, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(2.3, 2), getMaterial(new THREE.MeshStandardMaterial({ color: 0x88ccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide }), 'window'), 5.92, 1.5, -1, 0, -Math.PI/2, 0, scene); 
         
-        // Radiator
-        addMesh(new THREE.BoxGeometry(0.15, 0.5, 2), new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.3, roughness: 0.6 }), 5.85, 0.25, -1, 0, 0, 0, scene);
+        // Radiator / Boiler
+        addMesh(new THREE.BoxGeometry(0.15, 0.5, 2), getMaterial(new THREE.MeshStandardMaterial({ color: 0xe8e8e8, metalness: 0.3, roughness: 0.6 }), 'heating'), 5.85, 0.25, -1, 0, 0, 0, scene);
 
-        // Plants on Sill
         createPlant(5.75, 1.05, -1.8, 0.08, scene);
         createPlant(5.75, 1.05, -0.5, 0.09, scene);
         createPlant(5.75, 1.05, 0.8, 0.07, scene);
 
-        // Front Walls
         addMesh(new THREE.PlaneGeometry(4, 3), wallMat, -4, 1.5, 5, 0, Math.PI, 0, scene);
         addMesh(new THREE.PlaneGeometry(6, 3), wallMat, 3, 1.5, 5, 0, Math.PI, 0, scene);
 
         // INTERIOR WALLS
-        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 0.5, 1.5, 7.5, 0, -Math.PI/2, 0, scene); // Hall Right
-        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, -6, 1.5, 10, 0, 0, 0, scene); // Bed Back
-        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, -3.5, 1.5, 8.5, 0, -Math.PI/2, 0, scene); // Bed Right
-        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 3, 1.5, 10, 0, 0, 0, scene); // Bath Back
-        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 1.5, 1.5, 8.5, 0, Math.PI/2, 0, scene); // Bath Left
+        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, 0.5, 1.5, 7.5, 0, -Math.PI/2, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(5, 3), wallMat, -6, 1.5, 10, 0, 0, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, -3.5, 1.5, 8.5, 0, -Math.PI/2, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 3, 1.5, 10, 0, 0, 0, scene); 
+        addMesh(new THREE.PlaneGeometry(3, 3), wallMat, 1.5, 1.5, 8.5, 0, Math.PI/2, 0, scene); 
 
         // DOORS
-        addMesh(new THREE.BoxGeometry(1.2, 2.5, 0.08), doorMat, -1, 1.25, 9.96, 0, 0, 0, scene); // Entry
-        addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, -3.5, 1.15, 7, 0, 0, 0, scene); // Bed
-        addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, 1.5, 1.15, 7, 0, 0, 0, scene); // Bath
+        addMesh(new THREE.BoxGeometry(1.2, 2.5, 0.08), doorMat, -1, 1.25, 9.96, 0, 0, 0, scene); 
+        addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, -3.5, 1.15, 7, 0, 0, 0, scene); 
+        addMesh(new THREE.BoxGeometry(0.08, 2.3, 1), doorMat, 1.5, 1.15, 7, 0, 0, 0, scene); 
 
         // FURNITURE
-        // Office
-        addMesh(new THREE.BoxGeometry(2.2, 0.06, 0.9), woodMat, -3.5, 0.75, 3.5, 0, 0, 0, scene); // Desk Top
+        addMesh(new THREE.BoxGeometry(2.2, 0.06, 0.9), woodMat, -3.5, 0.75, 3.5, 0, 0, 0, scene); 
         addMesh(new THREE.BoxGeometry(0.65, 0.45, 0.05), new THREE.MeshStandardMaterial({ color: 0x2a2a2a }), -4, 1.25, 3.5, 0, 0, 0, scene);
         addMesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshStandardMaterial({ color: 0xd5d5ff, emissive: 0x5a5a9a, emissiveIntensity: 0.25 }), -4, 1.25, 3.53, 0, 0, 0, scene);
         
-        // Sofa
         addMesh(new THREE.BoxGeometry(2.2, 0.4, 0.9), greyMat, 4.3, 0.2, -1, 0, 0, 0, scene);
         addMesh(new THREE.BoxGeometry(2.1, 0.6, 0.2), greyMat, 4.3, 0.7, -1.4, 0, 0, 0, scene);
-        addMesh(new THREE.BoxGeometry(0.8, 0.15, 0.6), new THREE.MeshStandardMaterial({ color: 0xc43030, roughness: 0.8 }), 4.8, 0.72, -1, 0, 0, 0, scene); // Red Blanket
+        addMesh(new THREE.BoxGeometry(0.8, 0.15, 0.6), new THREE.MeshStandardMaterial({ color: 0xc43030, roughness: 0.8 }), 4.8, 0.72, -1, 0, 0, 0, scene); 
 
-        // Kitchen
-        addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), greyMat, -2.5, 0.45, -4.7, 0, 0, 0, scene);
-        addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), greyMat, 1.5, 0.45, -4.7, 0, 0, 0, scene);
+        addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), getMaterial(greyMat, 'appliance'), -2.5, 0.45, -4.7, 0, 0, 0, scene);
+        addMesh(new THREE.BoxGeometry(2.5, 0.9, 0.6), getMaterial(greyMat, 'appliance'), 1.5, 0.45, -4.7, 0, 0, 0, scene);
         createPlant(2.2, 1, -4.5, 0.06, scene);
 
-        // Bed
-        addMesh(new THREE.BoxGeometry(2, 0.5, 2.8), woodMat, -6.5, 0.25, 8, 0, 0, 0, scene); // Frame
-        addMesh(new THREE.BoxGeometry(1.8, 0.12, 1.2), new THREE.MeshStandardMaterial({ color: 0xc43030 }), -6.5, 0.86, 8.5, 0, 0, 0, scene); // Blanket
-
-        // Bath
-        addMesh(new THREE.BoxGeometry(0.8, 0.5, 1.6), whiteMat, 4.2, 0.25, 8.3, 0, 0, 0, scene); // Tub
+        addMesh(new THREE.BoxGeometry(2, 0.5, 2.8), woodMat, -6.5, 0.25, 8, 0, 0, 0, scene); 
+        addMesh(new THREE.BoxGeometry(1.8, 0.12, 1.2), new THREE.MeshStandardMaterial({ color: 0xc43030 }), -6.5, 0.86, 8.5, 0, 0, 0, scene); 
+        addMesh(new THREE.BoxGeometry(0.8, 0.5, 1.6), whiteMat, 4.2, 0.25, 8.3, 0, 0, 0, scene); 
 
         // LABELS
-        addLabel("Living Room", 3, 2.5, -1, 'living', scene);
-        addLabel("Office", -3.5, 2.5, 3.5, 'office', scene);
-        addLabel("Kitchen", 0, 2.5, -4, 'kitchen', scene);
-        addLabel("Bedroom", -6.5, 2.5, 8, 'bedroom', scene);
-        addLabel("Bathroom", 3.5, 2.5, 8.5, 'bathroom', scene);
+        if (!minimalUI) {
+            addLabel("Living Room", 3, 2.5, -1, 'living', scene);
+            addLabel("Office", -3.5, 2.5, 3.5, 'office', scene);
+            addLabel("Kitchen", 0, 2.5, -4, 'kitchen', scene);
+            addLabel("Bedroom", -6.5, 2.5, 8, 'bedroom', scene);
+            addLabel("Bathroom", 3.5, 2.5, 8.5, 'bathroom', scene);
+        }
     };
 
-    // --- DECISION LOGIC ---
-    // If not demo mode AND we have spatial layout data, generate dynamic scene.
-    // Otherwise (or if demo mode), render static high-fidelity Highbury scene.
     if (!isDemoMode && analysisData?.spatialLayout?.rooms && analysisData.spatialLayout.rooms.length > 0) {
         renderDynamicScene(analysisData.spatialLayout.rooms);
     } else {
         renderStaticDemoScene();
     }
 
-    // EVENTS
     const handleResize = () => {
         if (!mountRef.current || !cameraRef.current || !rendererRef.current) return;
         const w = mountRef.current.clientWidth;
@@ -386,17 +377,17 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         rendererRef.current.setSize(w, h);
     };
     
-    // Add ResizeObserver to handle container size changes (e.g. sidebar toggle)
     const resizeObserver = new ResizeObserver(() => {
         handleResize();
     });
     resizeObserver.observe(mountRef.current);
     
-    // ORBIT CONTROLS LOGIC
     const onMouseDown = (e: MouseEvent) => {
         isDraggingLogicRef.current = true;
-        setIsDragging(true); // Trigger UI update
+        setIsDragging(true); 
         dragStart.current = { x: e.clientX, y: e.clientY };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
     };
     
     const onMouseMove = (e: MouseEvent) => {
@@ -414,7 +405,6 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
             cameraState.current.phi -= deltaY * 0.005; 
             cameraState.current.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.1, cameraState.current.phi));
             
-            // Immediately switch logic to custom view if dragging
             if(viewRef.current !== 'custom') {
                 viewRef.current = 'custom';
                 setView('custom');
@@ -430,6 +420,8 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     const onMouseUp = () => {
         isDraggingLogicRef.current = false;
         setIsDragging(false);
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
     };
     
     const onWheel = (e: WheelEvent) => {
@@ -453,21 +445,17 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     };
 
     mountRef.current.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    mountRef.current.addEventListener('mousemove', onMouseMove); 
     mountRef.current.addEventListener('wheel', onWheel, { passive: false });
     mountRef.current.addEventListener('click', handleClick);
-    
-    // Fallback for standard resize events
     window.addEventListener('resize', handleResize);
 
-    // Animation Loop
     const animate = () => {
         frameIdRef.current = requestAnimationFrame(animate);
         const cam = cameraRef.current;
         
         if (cam && rendererRef.current) {
-            const currentView = viewRef.current; // Use Ref to get latest view inside closure
+            const currentView = viewRef.current; 
 
             if (currentView === 'custom') {
                 const { r, theta, phi, target } = cameraState.current;
@@ -478,11 +466,8 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
                 cam.lookAt(target);
             } else {
                 cam.position.lerp(targetCamPos.current, 0.05);
-                
-                // Keep r synced for smooth manual takeover
                 const dist = cam.position.distanceTo(targetLookAt.current);
                 cameraState.current.r = dist;
-                
                 cam.lookAt(targetLookAt.current);
             }
 
@@ -500,10 +485,11 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
         if(mountRef.current) {
             resizeObserver.disconnect();
             mountRef.current.removeEventListener('mousedown', onMouseDown);
+            mountRef.current.removeEventListener('mousemove', onMouseMove);
             mountRef.current.removeEventListener('wheel', onWheel);
             mountRef.current.removeEventListener('click', handleClick);
         }
-        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mousemove', onMouseMove); 
         window.removeEventListener('mouseup', onMouseUp);
         window.removeEventListener('resize', handleResize);
         cancelAnimationFrame(frameIdRef.current);
@@ -512,14 +498,14 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
             rendererRef.current.dispose();
         }
     };
-  }, [analysisData, isDemoMode]); 
+  }, [analysisData, isDemoMode, highlightCategory, initialView, minimalUI]); 
 
-  // View Controller Updates - Optimized for Clear Visibility
   useEffect(() => {
       const positions: Record<string, { pos: [number, number, number], look: [number, number, number] }> = {
           perspective: { pos: [16, 16, 16], look: [0, 0, 0] },
           top: { pos: [0, 24, 1], look: [0, 0, 0] },
-          // Adjusted angles to be "over the wall" isometric
+          left: { pos: [16, 16, -16], look: [0, 0, 0] }, // Helper for visualizer rotations
+          right: { pos: [-16, 16, 16], look: [0, 0, 0] },
           living: { pos: [4, 8, 8], look: [4, 1, -1] }, 
           office: { pos: [0, 8, 8], look: [-3.5, 1, 3.5] },
           kitchen: { pos: [0, 6, 2], look: [0, 1, -4.7] },
@@ -531,11 +517,10 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
       if (view !== 'custom' && positions[view]) {
           targetCamPos.current.set(...positions[view].pos);
           targetLookAt.current.set(...positions[view].look);
-          cameraState.current.target.set(...positions[view].look); // Sync target
+          cameraState.current.target.set(...positions[view].look); 
       }
   }, [view]);
 
-  // Determine active features based on view
   const activeFeature = useMemo(() => {
       switch(view) {
           case 'living': return { title: "Living Room", desc: "Detected living space with seating area." };
@@ -551,95 +536,95 @@ export default function InteractiveApartmentView({ analysisData, isDemoMode = fa
     <div className="w-full h-full relative group bg-slate-50 overflow-hidden rounded-xl cursor-grab active:cursor-grabbing">
       <div className="w-full h-full" ref={mountRef} />
       
-      {/* UI Overlay - Auto Hiding Hover Menu */}
-      <div className={`absolute top-4 left-4 z-30 flex flex-col items-start group/menu transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          
-          {/* Collapsed State Indicator (Menu Icon) */}
-          <div className="bg-white/80 backdrop-blur-md p-2 rounded-lg shadow-sm border border-slate-200 transition-all duration-300 group-hover/menu:opacity-0 group-hover/menu:pointer-events-none">
-             <Menu className="w-5 h-5 text-slate-600" />
-          </div>
-
-          {/* Expanded Menu (Visible on Hover) */}
-          <div className="absolute top-0 left-0 w-64 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 transition-all duration-300 origin-top-left opacity-0 scale-95 pointer-events-none group-hover/menu:opacity-100 group-hover/menu:scale-100 group-hover/menu:pointer-events-auto">
-              <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
-                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Detailed Analysis</h3>
-                 <button onClick={() => setShowGrid(!showGrid)} className={`p-1.5 rounded-md transition-colors ${showGrid ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`} title="Toggle Grid">
-                    <Grid className="w-3.5 h-3.5" />
-                 </button>
+      {!minimalUI && (
+        <>
+          <div className={`absolute top-4 left-4 z-30 flex flex-col items-start group/menu transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+              <div className="bg-white/80 backdrop-blur-md p-2 rounded-lg shadow-sm border border-slate-200 transition-all duration-300 group-hover/menu:opacity-0 group-hover/menu:pointer-events-none">
+                 <Menu className="w-5 h-5 text-slate-600" />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                 <button onClick={() => setView('perspective')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'perspective' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                    <Layers className="w-3 h-3" /> Overview
-                 </button>
-                 <button onClick={() => setView('top')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'top' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
-                    <Maximize className="w-3 h-3" /> Top Plan
-                 </button>
-                 
-                 {(analysisData?.spatialLayout?.rooms || []).map((room, i) => (
-                     <button 
-                        key={room.id || i}
-                        onClick={() => setView(room.type)} 
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all capitalize ${view === room.type ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                     >
-                        {room.type === 'living' && <Home className="w-3 h-3"/>}
-                        {room.type === 'bedroom' && <Bed className="w-3 h-3"/>}
-                        {room.type === 'kitchen' && <Layers className="w-3 h-3"/>}
-                        {room.type === 'bathroom' && <Bath className="w-3 h-3"/>}
-                        {room.type === 'office' && <Monitor className="w-3 h-3"/>}
-                        {room.name}
+
+              <div className="absolute top-0 left-0 w-64 bg-white/90 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200 transition-all duration-300 origin-top-left opacity-0 scale-95 pointer-events-none group-hover/menu:opacity-100 group-hover/menu:scale-100 group-hover/menu:pointer-events-auto">
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Detailed Analysis</h3>
+                     <button onClick={() => setShowGrid(!showGrid)} className={`p-1.5 rounded-md transition-colors ${showGrid ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-100'}`} title="Toggle Grid">
+                        <Grid className="w-3.5 h-3.5" />
                      </button>
-                 ))}
-                 
-                 {(!analysisData?.spatialLayout?.rooms || analysisData.spatialLayout.rooms.length === 0) && (
-                    <>
-                        <button onClick={() => setView('living')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'living' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Home className="w-3 h-3"/> Living</button>
-                        <button onClick={() => setView('office')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'office' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor className="w-3 h-3"/> Office</button>
-                        <button onClick={() => setView('bedroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bedroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bed className="w-3 h-3"/> Bed</button>
-                        <button onClick={() => setView('bathroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bathroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bath className="w-3 h-3"/> Bath</button>
-                    </>
-                 )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                     <button onClick={() => setView('perspective')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'perspective' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <Layers className="w-3 h-3" /> Overview
+                     </button>
+                     <button onClick={() => setView('top')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'top' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <Maximize className="w-3 h-3" /> Top Plan
+                     </button>
+                     
+                     {(analysisData?.spatialLayout?.rooms || []).map((room, i) => (
+                         <button 
+                            key={room.id || i}
+                            onClick={() => setView(room.type)} 
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all capitalize ${view === room.type ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                         >
+                            {room.type === 'living' && <Home className="w-3 h-3"/>}
+                            {room.type === 'bedroom' && <Bed className="w-3 h-3"/>}
+                            {room.type === 'kitchen' && <Layers className="w-3 h-3"/>}
+                            {room.type === 'bathroom' && <Bath className="w-3 h-3"/>}
+                            {room.type === 'office' && <Monitor className="w-3 h-3"/>}
+                            {room.name}
+                         </button>
+                     ))}
+                     
+                     {(!analysisData?.spatialLayout?.rooms || analysisData.spatialLayout.rooms.length === 0) && (
+                        <>
+                            <button onClick={() => setView('living')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'living' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Home className="w-3 h-3"/> Living</button>
+                            <button onClick={() => setView('office')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'office' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Monitor className="w-3 h-3"/> Office</button>
+                            <button onClick={() => setView('bedroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bedroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bed className="w-3 h-3"/> Bed</button>
+                            <button onClick={() => setView('bathroom')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-bold transition-all ${view === 'bathroom' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}><Bath className="w-3 h-3"/> Bath</button>
+                        </>
+                     )}
+                  </div>
               </div>
           </div>
-      </div>
 
-      <div className={`absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-2 rounded-lg text-xs font-bold shadow-lg pointer-events-none flex flex-col gap-1 items-end transition-opacity duration-300 ${isDragging ? 'opacity-0' : 'opacity-100'}`}>
-         <div className="flex items-center gap-1.5"><Move className="w-3 h-3"/> Drag to Rotate</div>
-         <div className="flex items-center gap-1.5 opacity-80"><Rotate3d className="w-3 h-3"/> Scroll to Zoom</div>
-      </div>
+          <div className={`absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white px-3 py-2 rounded-lg text-xs font-bold shadow-lg pointer-events-none flex flex-col gap-1 items-end transition-opacity duration-300 ${isDragging ? 'opacity-0' : 'opacity-100'}`}>
+             <div className="flex items-center gap-1.5"><Move className="w-3 h-3"/> Drag to Rotate</div>
+             <div className="flex items-center gap-1.5 opacity-80"><Rotate3d className="w-3 h-3"/> Scroll to Zoom</div>
+          </div>
 
-      <div className={`absolute bottom-4 right-4 z-20 transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        <div className="group relative flex flex-col items-end">
-            {/* Popup content */}
-            <div className="absolute bottom-full mb-3 right-0 w-64 origin-bottom-right scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
-                <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-slate-200 text-xs">
-                    {activeFeature ? (
-                        <>
-                            <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2 border-b border-slate-100 pb-2">
-                                <span className="bg-emerald-100 text-emerald-700 p-1 rounded-md"><CheckCircle2 className="w-3 h-3" /></span>
-                                {activeFeature.title} Verified
-                            </h4>
-                            <p className="text-slate-600 leading-relaxed">
-                                {activeFeature.desc}
-                            </p>
-                        </>
-                    ) : (
-                        <div className="text-slate-500 text-center py-2">
-                            <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                                <Info className="w-4 h-4 text-slate-400" />
+          <div className={`absolute bottom-4 right-4 z-20 transition-opacity duration-300 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className="group relative flex flex-col items-end">
+                <div className="absolute bottom-full mb-3 right-0 w-64 origin-bottom-right scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
+                    <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-slate-200 text-xs">
+                        {activeFeature ? (
+                            <>
+                                <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2 border-b border-slate-100 pb-2">
+                                    <span className="bg-emerald-100 text-emerald-700 p-1 rounded-md"><CheckCircle2 className="w-3 h-3" /></span>
+                                    {activeFeature.title} Verified
+                                </h4>
+                                <p className="text-slate-600 leading-relaxed">
+                                    {activeFeature.desc}
+                                </p>
+                            </>
+                        ) : (
+                            <div className="text-slate-500 text-center py-2">
+                                <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <Info className="w-4 h-4 text-slate-400" />
+                                </div>
+                                <p className="font-bold text-slate-700 mb-1">Full Layout View</p>
+                                <p className="opacity-80">Select a specific room from the menu to see verified AI feature detection details.</p>
                             </div>
-                            <p className="font-bold text-slate-700 mb-1">Full Layout View</p>
-                            <p className="opacity-80">Select a specific room from the menu to see verified AI feature detection details.</p>
-                        </div>
-                    )}
+                        )}
+                    </div>
+                </div>
+
+                <div className={`backdrop-blur-md p-3 rounded-full shadow-lg border flex items-center justify-center cursor-help transition-all hover:scale-110 ${activeFeature ? 'bg-emerald-50/90 border-emerald-200 text-emerald-600' : 'bg-white/90 border-slate-200 text-slate-400'}`}>
+                    <CheckCircle2 className="w-5 h-5" />
                 </div>
             </div>
-
-            {/* Trigger: Circular Icon Only */}
-            <div className={`backdrop-blur-md p-3 rounded-full shadow-lg border flex items-center justify-center cursor-help transition-all hover:scale-110 ${activeFeature ? 'bg-emerald-50/90 border-emerald-200 text-emerald-600' : 'bg-white/90 border-slate-200 text-slate-400'}`}>
-                <CheckCircle2 className="w-5 h-5" />
-            </div>
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
-}
+});
+
+export default InteractiveApartmentView;
