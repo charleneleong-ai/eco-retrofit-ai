@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AnalysisResult, HomeProfile, Recommendation } from '../types';
+import { AnalysisResult, HomeProfile, Recommendation, ComparisonFactor } from '../types';
 import SavingsChart from './SavingsChart';
 import UsageTrendsChart from './UsageTrendsChart';
 import EPCBadge from './EPCBadge';
@@ -10,7 +10,7 @@ import Demo3DView from './Demo3DView';
 import { updateBenchmark } from '../services/geminiService';
 import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen, Globe, UserCheck, Activity } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen, Globe, UserCheck, Activity, Info, Brain } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -22,6 +22,60 @@ interface DashboardProps {
   homeImages?: string[];
   isDemoMode?: boolean;
 }
+
+const FactorItem: React.FC<{ factor: ComparisonFactor }> = ({ factor }) => {
+    const [isHovered, setIsHovered] = useState(false);
+    const isLivingPattern = factor.label.toLowerCase().includes('pattern') || factor.label.toLowerCase().includes('occupancy') || factor.label.toLowerCase().includes('load') || factor.label.toLowerCase().includes('preference');
+
+    return (
+        <div 
+            className="group py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg relative"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-start gap-4">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1.5">
+                            {isLivingPattern ? <UserCheck className="w-3 h-3 text-emerald-500" /> : <Home className="w-3 h-3 text-slate-400" />}
+                            {factor.label}
+                        </span>
+                    </div>
+                    <div className={`text-[10px] px-3 py-1.5 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border shadow-sm ${isLivingPattern ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+                        {factor.variance}
+                    </div>
+                </div>
+                <div className="flex items-center justify-between pl-1">
+                    <div className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                        <div className={`w-1.5 h-1.5 rounded-full ${isLivingPattern ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>
+                        {factor.userValue}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">vs {factor.localAvg}</div>
+                        {factor.explanation && (
+                            <Info className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-400 transition-colors cursor-help" />
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Methodology Pop-up (Explanation) */}
+            {isHovered && factor.explanation && (
+                <div className="absolute left-0 right-0 bottom-full mb-2 z-50 animate-fade-in-up">
+                    <div className="bg-white/95 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-purple-100 ring-1 ring-slate-900/5 max-w-sm">
+                        <p className="text-[10px] font-bold text-purple-600 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                            <Brain className="w-3 h-3" /> AI Methodology
+                        </p>
+                        <p className="text-xs text-slate-600 leading-relaxed italic">
+                            "{factor.explanation}"
+                        </p>
+                        <div className="absolute left-6 top-full w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-white/95"></div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 const AnalysisDashboard: React.FC<DashboardProps> = ({ 
   data: initialData, 
@@ -41,7 +95,6 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(20);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   
-  // Define scrollToPanel helper to fix the reference error on line 329
   const scrollToPanel = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -297,23 +350,9 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                  <div className="p-6 bg-white flex flex-col h-full animate-fade-in-left">
                      <div className="flex items-center justify-between mb-4"><h4 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Layers className="w-4 h-4 text-slate-500" />Intelligence Comparison</h4><button onClick={() => setIsProfileOpen(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded transition-colors"><Pencil className="w-3 h-3" /> Edit Profile</button></div>
                      <div className="space-y-4 flex-1">
-                        {data.comparison.factors && data.comparison.factors.map((factor, i) => {
-                            const isLivingPattern = factor.label.toLowerCase().includes('pattern') || factor.label.toLowerCase().includes('occupancy') || factor.label.toLowerCase().includes('load') || factor.label.toLowerCase().includes('preference');
-                            return (
-                                <div key={i} className="group py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors -mx-2 px-2 rounded-lg">
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex justify-between items-start gap-4">
-                                            <div className="flex flex-col"><span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1.5">{isLivingPattern ? <UserCheck className="w-3 h-3 text-emerald-500" /> : <Home className="w-3 h-3 text-slate-400" />}{factor.label}</span></div>
-                                            <div className={`text-[10px] px-3 py-1.5 rounded-lg rounded-tr-sm font-medium leading-relaxed max-w-[70%] text-left border shadow-sm ${isLivingPattern ? 'bg-emerald-50 border-emerald-100 text-emerald-800' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>{factor.variance}</div>
-                                        </div>
-                                        <div className="flex items-center justify-between pl-1">
-                                            <div className="font-bold text-slate-700 text-sm flex items-center gap-2"><div className={`w-1.5 h-1.5 rounded-full ${isLivingPattern ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>{factor.userValue}</div>
-                                            <div className="text-xs text-slate-400 font-medium bg-slate-50 px-2 py-0.5 rounded-md">vs {factor.localAvg}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {data.comparison.factors && data.comparison.factors.map((factor, i) => (
+                            <FactorItem key={i} factor={factor} />
+                        ))}
                      </div>
                      <div className="mt-6 bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-xs text-indigo-900 leading-relaxed shadow-sm"><p className="font-bold mb-2 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Composite Audit Summary</p><div className="bg-white/60 p-2 rounded-lg mb-2">{renderTextWithCitations(data.comparison.description)}</div><p className="text-[10px] opacity-70 italic">Insights derived from structural building stock and detected household behavioral patterns.</p></div>
                  </div>

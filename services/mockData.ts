@@ -106,11 +106,41 @@ While the property is a Victorian conversion, our AI audit has identified signif
     description: "Your home's efficiency is shaped by both its Victorian structure and your active living patterns. While the build performs 12% better than uninsulated stock, your electricity load is higher than 70% of local 1-bed flats due to the frequent use of high-intensity appliances like the tumble dryer during peak hours.",
     neighborhoodName: "Highbury, London (N5)",
     factors: [
-        { label: "Regional Build Era", userValue: "Victorian (London)", localAvg: "1900-1920 Avg", variance: "Structural performance matches regional averages." },
-        { label: "Occupancy Density", userValue: "2 Adults (32sqm)", localAvg: "1.2 (Regional)", variance: "60% higher density increases incidental heat and hot water demand." },
-        { label: "Living Pattern", userValue: "Evenings & Weekends", localAvg: "Commuter Shift", variance: "Standard usage, but evening peaks align with high tariff periods." },
-        { label: "Appliance Load", userValue: "High (Dryer/Dish)", localAvg: "Essential only", variance: "Appliance baseline is 22% higher than similar 1-bed flats." },
-        { label: "Heating Preference", userValue: "Gas Boiler (Active)", localAvg: "Standard Controls", variance: "Usage peaks coincide with maximum heat loss hours." }
+        { 
+          label: "Regional Build Era", 
+          userValue: "Victorian (London)", 
+          localAvg: "1900-1920 Avg", 
+          variance: "Structural performance matches regional averages.",
+          explanation: "Inferred from your N5 postcode and visible sash window geometry in the walkthrough video. Victorian building stock in Highbury typically lacks cavity wall insulation, which matches your detected usage profile."
+        },
+        { 
+          label: "Occupancy Density", 
+          userValue: "2 Adults (32sqm)", 
+          localAvg: "1.2 (Regional)", 
+          variance: "60% higher density increases incidental heat and hot water demand.",
+          explanation: "Comparison based on ONS Highbury East data for average occupants per 1-bed flat. Two active occupants increase the baseload demand for washing, cooking, and heat retention via internal gains."
+        },
+        { 
+          label: "Living Pattern", 
+          userValue: "Evenings & Weekends", 
+          localAvg: "Commuter Shift", 
+          variance: "Standard usage, but evening peaks align with high tariff periods.",
+          explanation: "By analyzing the cost-per-kWh ratio in your OVO bills, we detected significant spikes between 18:00 and 21:00. These correlate with peak demand times where standard tariffs are highest."
+        },
+        { 
+          label: "Appliance Load", 
+          userValue: "High (Dryer/Dish)", 
+          localAvg: "Essential only", 
+          variance: "Appliance baseline is 22% higher than similar 1-bed flats.",
+          explanation: "Visual recognition identified a condensing tumble dryer and dishwasher. Billing data shows a non-heating electricity baseline of ~6kWh/day, which is significantly above the regional flat average."
+        },
+        { 
+          label: "Heating Preference", 
+          userValue: "Gas Boiler (Active)", 
+          localAvg: "Standard Controls", 
+          variance: "Usage peaks coincide with maximum heat loss hours.",
+          explanation: "Calculated by subtracting base water heating from Jan/Feb total gas volume. Your heating duration suggests active usage during sunset hours when Victorian solid walls dissipate heat most rapidly."
+        }
     ]
   },
   dataSources: [

@@ -15,6 +15,7 @@ export interface ComparisonFactor {
   userValue: string;  // e.g. "1930s Semi", "2 Adults"
   localAvg: string;   // e.g. "1930-1950", "2.4 People"
   variance: string;   // e.g. "Match", "Higher", "Lower"
+  explanation?: string; // NEW: AI Reasoning for this specific inference
 }
 
 export interface HomeProfile {

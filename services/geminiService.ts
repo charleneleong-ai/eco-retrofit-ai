@@ -241,6 +241,7 @@ export const updateBenchmark = async (
         3. Populate 'factors' array. 
            - MANDATORY: Include at least TWO factors focused on "Living Patterns" (e.g., Occupancy Density, Energy Intensity, Home Hours).
            - 'variance' should be a concise insight (e.g., "60% higher occupancy than regional typicals", "Daytime usage increases base heat demand by 15%").
+           - 'explanation': MANDATORY. Explain EXACTLY how the AI reached this conclusion. For living patterns, mention specific bill peaks vs tariff times or appliance density metrics detected.
 
         Output PURE JSON matching schema: ComparisonData.
     `;
@@ -268,7 +269,8 @@ export const updateBenchmark = async (
                                     label: { type: Type.STRING },
                                     userValue: { type: Type.STRING },
                                     localAvg: { type: Type.STRING },
-                                    variance: { type: Type.STRING }
+                                    variance: { type: Type.STRING },
+                                    explanation: { type: Type.STRING }
                                 }
                             }
                         }
@@ -319,6 +321,8 @@ export const analyzeHomeData = async (
     3. EPC: Inferred or official.
     4. Plan: Tailored to ${userType}.
     5. Benchmarking: Compare build stock AND living patterns (occupancy, hours, appliance density).
+       - For each Comparison Factor, provide a detailed 'explanation' field.
+       - 'explanation' must justify how the AI reached the conclusion (e.g. "We detected evening peaks in your Nov-Jan bills which align with typical high-tariff demand periods in the UK Power Networks area").
     6. Spatial Layout Inference.
     7. Citations: Use VERIFIED SOURCE LIBRARY URLs.
 
@@ -353,7 +357,7 @@ export const analyzeHomeData = async (
             epc: { type: Type.OBJECT, properties: { current: { type: Type.STRING }, potential: { type: Type.STRING }, score: { type: Type.NUMBER }, isEstimate: { type: Type.BOOLEAN }, validUntil: { type: Type.STRING }, certificateNumber: { type: Type.STRING }, propertyType: { type: Type.STRING }, totalFloorArea: { type: Type.STRING }, upgradePotentialExplanation: { type: Type.STRING }, breakdown: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, description: { type: Type.STRING }, rating: { type: Type.STRING } } } } }, required: ['current', 'potential', 'score', 'isEstimate'] },
             homeProfile: { type: Type.OBJECT, properties: { propertyType: { type: Type.STRING }, bedrooms: { type: Type.NUMBER }, occupants: { type: Type.NUMBER }, homeHours: { type: Type.STRING }, heatingType: { type: Type.STRING }, hasEV: { type: Type.BOOLEAN }, appliances: { type: Type.ARRAY, items: { type: Type.STRING } } } },
             spatialLayout: { type: Type.OBJECT, properties: { rooms: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { id: { type: Type.STRING }, name: { type: Type.STRING }, type: { type: Type.STRING }, dimensions: { type: Type.OBJECT, properties: { width: { type: Type.NUMBER }, depth: { type: Type.NUMBER } } }, features: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { type: { type: Type.STRING }, name: { type: Type.STRING }, position: { type: Type.STRING } } } } } } } } },
-            comparison: { type: Type.OBJECT, properties: { similarHomeAvgCost: { type: Type.NUMBER }, areaAverageCost: { type: Type.NUMBER }, efficientHomeCost: { type: Type.NUMBER }, efficiencyPercentile: { type: Type.NUMBER }, description: { type: Type.STRING }, neighborhoodName: { type: Type.STRING }, factors: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { label: { type: Type.STRING }, userValue: { type: Type.STRING }, localAvg: { type: Type.STRING }, variance: { type: Type.STRING } } } } }, required: ['similarHomeAvgCost', 'efficiencyPercentile', 'description'] },
+            comparison: { type: Type.OBJECT, properties: { similarHomeAvgCost: { type: Type.NUMBER }, areaAverageCost: { type: Type.NUMBER }, efficientHomeCost: { type: Type.NUMBER }, efficiencyPercentile: { type: Type.NUMBER }, description: { type: Type.STRING }, neighborhoodName: { type: Type.STRING }, factors: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { label: { type: Type.STRING }, userValue: { type: Type.STRING }, localAvg: { type: Type.STRING }, variance: { type: Type.STRING }, explanation: { type: Type.STRING } } } } }, required: ['similarHomeAvgCost', 'efficiencyPercentile', 'description'] },
             dataSources: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, url: { type: Type.STRING } }, required: ['title', 'url'] } },
             recommendations: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING }, estimatedCost: { type: Type.STRING }, estimatedAnnualSavings: { type: Type.STRING }, impact: { type: Type.STRING }, category: { type: Type.STRING } }, required: ['title', 'description', 'estimatedCost', 'estimatedAnnualSavings', 'impact', 'category'] } }
           },
