@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppState, AnalysisResult, UserType, SavedAnalysis, AnalysisVersion } from './types';
 import { analyzeHomeData, extractEPCData } from './services/geminiService';
@@ -126,7 +125,7 @@ export default function App() {
         data: await fileToBase64(file)
       })));
 
-      const homeImages = await Promise.all(homeFiles.map(fileToBase64));
+      const homeImages: string[] = await Promise.all(homeFiles.map(fileToBase64));
       
       // Process videos safely
       const videoDataArray = await Promise.all(videoFiles.map(async (file) => {
@@ -145,10 +144,10 @@ export default function App() {
       const validVideoData = videoDataArray.filter((v): v is { mimeType: string; data: string } => v !== null);
 
       // Extract representative frames
-      const videoFrames = await Promise.all(videoFiles.map(extractFrameFromVideo));
+      const videoFrames: string[] = await Promise.all(videoFiles.map(extractFrameFromVideo));
       const validVideoFrames = videoFrames.filter(f => f.length > 0);
       
-      const allVisuals = [...homeImages, ...validVideoFrames];
+      const allVisuals: string[] = [...homeImages, ...validVideoFrames];
       setProcessedHomeImages(allVisuals);
       
       if (videoFiles.length > 0) {
@@ -613,7 +612,7 @@ export default function App() {
                 <Leaf className="w-8 h-8 text-emerald-600" />
               </div>
             </div>
-            <h3 className="mt-8 text-2xl font-bold text-slate-800">Analyzing Your Home</h3>
+            <h3 className="mt-8 text-2xl font-bold text-slate-800">Analysing Your Home</h3>
             <p className="text-slate-500 mt-2 max-w-md min-h-[24px] transition-all duration-300">{loadingMsg}</p>
           </div>
         )}

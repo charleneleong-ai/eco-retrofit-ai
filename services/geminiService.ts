@@ -67,7 +67,7 @@ export const generateRetrofitVisualization = async (
           break;
       case 'Realistic':
       default:
-          styleInstruction = 'Render Style: Ultra-Photorealistic Architectural Visualization. 8K resolution, highly detailed textures, physically based rendering (PBR), ray-traced global illumination, soft shadows. Unreal Engine 5 Lumen quality. Focus on material accuracy (wood grain, fabric weave, glass reflections, metal sheen).';
+          styleInstruction = 'Render Style: Ultra-Photorealistic Architectural Visualisation. 8K resolution, highly detailed textures, physically based rendering (PBR), ray-traced global illumination, soft shadows. Unreal Engine 5 Lumen quality. Focus on material accuracy (wood grain, fabric weave, glass reflections, metal sheen).';
           break;
   }
 
@@ -75,7 +75,7 @@ export const generateRetrofitVisualization = async (
 
   if (isStructureMode) {
       prompt = `
-        You are a world-class AI Architect and 3D Visualizer.
+        You are a world-class AI Architect and 3D Visualiser.
         Task: Generate a masterpiece quality, high-fidelity ${viewAngle} 3D architectural cutaway of the room/building shown in the input image.
         Input Context: The image is a frame from a walkthrough video or a photo of a home. Use it to accurately infer the structure, room layout, and furniture placement.
         Specific Instructions:
@@ -90,9 +90,9 @@ export const generateRetrofitVisualization = async (
       `;
   } else {
       prompt = `
-        You are a world-class AI Architectural Visualizer. 
-        Task: Create a ${isHighDetail ? 'photorealistic, 8K resolution' : 'standard'} 3D visualization of the house in this photo.
-        Visualization Goal: Show the effect of: "${retrofitType}".
+        You are a world-class AI Architectural Visualiser. 
+        Task: Create a ${isHighDetail ? 'photorealistic, 8K resolution' : 'standard'} 3D visualisation of the house in this photo.
+        Visualisation Goal: Show the effect of: "${retrofitType}".
         Target View Angle: ${viewAngle}.
         Specific Rendering Instructions:
         1. Base Geometry: Use the uploaded photo/frame to infer the 3D structure.
@@ -154,7 +154,7 @@ export const extractEPCData = async (
   }];
 
   const prompt = `
-    Analyze this Energy Performance Certificate (EPC).
+    Analyse this Energy Performance Certificate (EPC).
     Extract the following details:
     1. Current and Potential Energy Rating (A-G).
     2. Current Energy Score (1-100).
@@ -222,18 +222,19 @@ export const updateBenchmark = async (
     const prompt = `
         You are a Home Energy Intelligence Engine.
         Refine the comparison between this user and regional averages, incorporating BOTH structural build stock AND living patterns.
+        Use British English spelling (e.g. colour, analyse, organisation, neighbour).
 
         Context:
         Location: ${currentAnalysis.comparison.neighborhoodName || currentAnalysis.address}
         Current User Monthly Cost: ${currentAnalysis.currentMonthlyAvg} ${currentAnalysis.currency}
         
-        New Profile Details (Behavioral Context):
+        New Profile Details (Behavioural Context):
         - Occupancy: ${newProfile.occupants} people (Density matters!)
         - Size/Bedrooms: ${newProfile.bedrooms} bedroom(s), ${newProfile.propertyType}
         - Hours at Home: ${newProfile.homeHours} (WFH patterns significantly increase daytime heating/elec baseline)
         - Heating: ${newProfile.heatingType}
         - EV Charging: ${newProfile.hasEV ? 'Yes' : 'No'}
-        - Appliances: ${newProfile.appliances.join(', ')} (Analyze the intensity of these specific appliances)
+        - Appliances: ${newProfile.appliances.join(', ')} (Analyse the intensity of these specific appliances)
 
         Task:
         1. Recalculate 'similarHomeAvgCost' and 'efficientHomeCost'.
@@ -311,13 +312,14 @@ export const analyzeHomeData = async (
   }
 
   const prompt = `
-    Expert Home Energy Auditor. Analyze energy bills and visual evidence.
+    Expert Home Energy Auditor (UK Focus). Analyse energy bills and visual evidence.
+    Use British English spelling (e.g. colour, analyse, organisation, neighbour, draught).
     
     Update Context: ${previousAnalysis ? `PREVIOUS SUMMARY: ${previousAnalysis.summary}` : ''}
     Previous Usage: ${previousUsageContext}
 
     1. Extract Customer Details.
-    2. Analyze Usage & Costs (12-month timeline MMM YY).
+    2. Analyse Usage & Costs (12-month timeline MMM YY).
     3. EPC: Inferred or official.
     4. Plan: Tailored to ${userType}.
     5. Benchmarking: Compare build stock AND living patterns (occupancy, hours, appliance density).
@@ -329,7 +331,7 @@ export const analyzeHomeData = async (
        - **Water Efficiency**: Aerators, eco-showerheads, cistern displacement.
        - **Lighting**: Transition to LED, occupancy sensors.
        - **Smart Home**: Smart TRVs, smart plugs for standby load reduction.
-       - **Renewables**: Battery storage optimization.
+       - **Renewables**: Battery storage optimisation.
 
     === VERIFIED SOURCE LIBRARY ===
     ${VERIFIED_SOURCES_LIBRARY}
@@ -391,7 +393,7 @@ export const chatWithCopilot = async (
   contextData: AnalysisResult
 ): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const context = `EcoRetrofit Copilot. Analysis: ${contextData.customerName}, Address: ${contextData.address}, Monthly: ${contextData.currentMonthlyAvg}, Savings: ${contextData.currentMonthlyAvg - contextData.projectedMonthlyAvg}.`;
+  const context = `EcoRetrofit Copilot. Analysis: ${contextData.customerName}, Address: ${contextData.address}, Monthly: ${contextData.currentMonthlyAvg}, Savings: ${contextData.currentMonthlyAvg - contextData.projectedMonthlyAvg}. Use British English spelling.`;
   const chatSession = ai.chats.create({
     model: MODEL_NAME,
     config: { systemInstruction: context },

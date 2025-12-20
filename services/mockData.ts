@@ -52,7 +52,7 @@ Based on the analysis of your **OVO Energy** bills and visual audit, your home i
 
 With **2 occupants typically home in the evenings and weekends**, your usage follows a standard domestic pattern. However, your electricity baseload is elevated due to your high appliance count, specifically the **Tumble Dryer, Dishwasher, and Electric Hob**. Space heating via your **Gas Boiler** remains the primary cost driver, peaking at ~1,500 kWh in January. 
 
-While the property is a Victorian conversion, our AI audit has identified significant **efficiency gains** [3] through optimization measures like boiler flow temperature reduction and reflective technology, which can save you up to **£95 annually** while maintaining comfort during occupancy hours.
+While the property is a Victorian conversion, our AI audit has identified significant **efficiency gains** [3] through optimisation measures like boiler flow temperature reduction and reflective technology, which can save you up to **£95 annually** while maintaining comfort during occupancy hours.
   `,
   epc: {
     current: "D",
@@ -125,7 +125,7 @@ While the property is a Victorian conversion, our AI audit has identified signif
           userValue: "Evenings & Weekends", 
           localAvg: "Commuter Shift", 
           variance: "Standard usage, but evening peaks align with high tariff periods.",
-          explanation: "By analyzing the cost-per-kWh ratio in your OVO bills, we detected significant spikes between 18:00 and 21:00. These correlate with peak demand times where standard tariffs are highest."
+          explanation: "By analysing the cost-per-kWh ratio in your OVO bills, we detected significant spikes between 18:00 and 21:00. These correlate with peak demand times where standard tariffs are highest."
         },
         { 
           label: "Appliance Load", 
@@ -154,7 +154,7 @@ While the property is a Victorian conversion, our AI audit has identified signif
   ],
   recommendations: [
     {
-      title: "Boiler Flow Temp Optimization",
+      title: "Boiler Flow Temp Optimisation",
       description: "Since you use a Gas Boiler, reducing the flow temperature to 55°C will keep it in 'condensing mode' longer, saving up to 8% on gas [3].",
       estimatedCost: "£0 (DIY)",
       estimatedAnnualSavings: "£75 - £95",

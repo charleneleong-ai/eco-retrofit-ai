@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Minimize2, Maximize2, MessageSquare } from 'lucide-react';
 import { AnalysisResult } from '../types';
@@ -14,7 +15,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ analysisResult }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<{ role: 'user' | 'model'; text: string }[]>([
-    { role: 'model', text: `Hi! I'm your EcoRetrofit Copilot. I've analyzed your home and bills. Based on the plan, you could save about **${analysisResult.currency}${Math.round((analysisResult.currentMonthlyAvg - analysisResult.projectedMonthlyAvg) * 12)} per year**. Ask me anything about the recommendations!` }
+    { role: 'model', text: `Hi! I'm your EcoRetrofit Copilot. I've analysed your home and bills. Based on the plan, you could save about **${analysisResult.currency}${Math.round((analysisResult.currentMonthlyAvg - analysisResult.projectedMonthlyAvg) * 12)} per year**. Ask me anything about the recommendations!` }
   ]);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);

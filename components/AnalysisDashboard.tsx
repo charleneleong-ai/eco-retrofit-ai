@@ -10,7 +10,7 @@ import Demo3DView from './Demo3DView';
 import { updateBenchmark } from '../services/geminiService';
 import { parseSavingsValue, getCurrencySymbol } from '../utils';
 import ReactMarkdown, { Components } from 'react-markdown';
-import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen, Globe, UserCheck, Activity, Info, Brain, Lightbulb, Droplets, Smartphone } from 'lucide-react';
+import { ArrowDown, Zap, Thermometer, Home, AlertCircle, Users, ExternalLink, BookOpen, MapPin, User, Calendar, PlusCircle, FileText, Video, Image as ImageIcon, Download, ArrowRight, CheckCircle2, Circle, SlidersHorizontal, LineChart, HelpCircle, Coins, Timer, Layers, Pencil, Sparkles, Satellite, Plus, Minus, Grid, PanelRightClose, PanelRightOpen, Globe, UserCheck, Activity, Info, Brain, Lightbulb, Droplets, Smartphone, ArrowRightCircle } from 'lucide-react';
 
 interface DashboardProps {
   data: AnalysisResult;
@@ -216,6 +216,15 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
     }
   };
 
+  const getEPCColorClass = (rating?: string) => {
+      if (!rating) return 'bg-slate-200 text-slate-500';
+      const r = rating.toUpperCase();
+      if (['A', 'B'].includes(r)) return 'bg-emerald-500 text-white';
+      if (['C'].includes(r)) return 'bg-[#8dce46] text-white';
+      if (['D', 'E'].includes(r)) return 'bg-[#fcc035] text-white'; // Yellow/Orange
+      return 'bg-rose-500 text-white';
+  };
+
   const renderTextWithCitations = (text: string) => {
     const parts = text.split(/(\[\d+\])/g);
     return parts.map((part, i) => {
@@ -289,13 +298,16 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-[280px_1fr] gap-4">
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 md:col-span-1 lg:col-span-1">
-          <p className="text-sm font-medium text-slate-500">Projected Annual Savings</p>
-          <div className="flex items-end gap-3 mt-1">
-            <h2 className="text-4xl font-bold text-emerald-600">{currencySymbol}{Math.round(calculatedAnnualSavings).toLocaleString()}</h2>
-            <span className="text-emerald-600 font-medium mb-1 flex items-center"><ArrowDown className="w-4 h-4 mr-0.5" />{savingsPercent}%</span>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 md:col-span-1 lg:col-span-1 flex flex-col">
+          <div>
+            <p className="text-sm font-medium text-slate-500">Projected Annual Savings</p>
+            <div className="flex items-end gap-3 mt-1">
+                <h2 className="text-4xl font-bold text-emerald-600">{currencySymbol}{Math.round(calculatedAnnualSavings).toLocaleString()}</h2>
+                <span className="text-emerald-600 font-medium mb-1 flex items-center"><ArrowDown className="w-4 h-4 mr-0.5" />{savingsPercent}%</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">Based on selected {selectedRecs.size}/{data.recommendations.length} actions</p>
           </div>
-          <p className="text-xs text-slate-400 mt-2">Based on selected {selectedRecs.size}/{data.recommendations.length} actions</p>
+          
           <div className="grid grid-cols-2 gap-4 mt-5">
              <div className="relative group cursor-help">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">Investment <HelpCircle className="w-3 h-3 text-slate-300" /></p>
@@ -306,6 +318,30 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                 <div className="flex items-center gap-1.5"><div className="bg-slate-100 p-1 rounded-md"><Timer className="w-3.5 h-3.5 text-slate-500" /></div><span className="font-bold text-slate-700 text-sm">{paybackPeriodYears <= 0 ? '-' : paybackPeriodYears < 1 ? '< 1 Year' : `${paybackPeriodYears.toFixed(1)} Years`}</span></div>
              </div>
           </div>
+
+          {/* Compact EPC Summary - Inserted as requested */}
+          {data.epc && (
+            <div className="mt-5 pt-4 border-t border-slate-100">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Efficiency Rating</p>
+                <div className="flex items-center justify-between bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                    <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] text-slate-500 mb-1 font-medium">Current</span>
+                        <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm shadow-sm ${getEPCColorClass(data.epc.current)}`}>
+                            {data.epc.current}
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-center px-2">
+                        <ArrowRight className="w-4 h-4 text-slate-300" />
+                    </div>
+                    <div className="flex flex-col items-center flex-1">
+                        <span className="text-[10px] text-slate-500 mb-1 font-medium">Potential</span>
+                        <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm shadow-sm ${getEPCColorClass(data.epc.potential)}`}>
+                            {data.epc.potential}
+                        </div>
+                    </div>
+                </div>
+            </div>
+          )}
         </div>
 
         <div id="savings-panel" className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 md:col-span-2 lg:col-span-1 scroll-mt-24">
@@ -369,7 +405,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
                             <FactorItem key={i} factor={factor} />
                         ))}
                      </div>
-                     <div className="mt-6 bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-xs text-indigo-900 leading-relaxed shadow-sm"><p className="font-bold mb-2 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Composite Audit Summary</p><div className="bg-white/60 p-2 rounded-lg mb-2">{renderTextWithCitations(data.comparison.description)}</div><p className="text-[10px] opacity-70 italic">Insights derived from structural building stock and detected household behavioral patterns.</p></div>
+                     <div className="mt-6 bg-indigo-50 p-4 rounded-xl border border-indigo-100 text-xs text-indigo-900 leading-relaxed shadow-sm"><p className="font-bold mb-2 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5 text-indigo-600" /> Composite Audit Summary</p><div className="bg-white/60 p-2 rounded-lg mb-2">{renderTextWithCitations(data.comparison.description)}</div><p className="text-[10px] opacity-70 italic">Insights derived from structural building stock and detected household behavioural patterns.</p></div>
                  </div>
              )}
           </div>
@@ -412,7 +448,7 @@ const AnalysisDashboard: React.FC<DashboardProps> = ({
       <div className="border-t border-slate-200 pt-6 mt-8" id="references-section">
          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div><h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-slate-500" />References & Data Sources</h4><ol className="list-decimal list-inside space-y-2 text-xs text-slate-600">{data.dataSources && data.dataSources.map((source, i) => (<li key={i} id={`ref-${i + 1}`} className="pl-1 scroll-mt-24 transition-colors duration-500 rounded p-1"><a href={source.url} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-600 hover:underline inline-flex items-center gap-1 transition-colors">{source.title} <ExternalLink className="w-3 h-3 text-slate-400" /></a></li>))}</ol></div>
-            <div><h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><FileText className="w-4 h-4 text-slate-500" />Analyzed Source Documents</h4><ul className="space-y-1.5">{data.sourceDocuments && data.sourceDocuments.map((doc, i) => (<li key={i} className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg">{doc.type === 'video' ? <Video className="w-3 h-3" /> : doc.type === 'image' ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}<span className="truncate flex-1">{doc.name}</span>{doc.date && <span className="text-slate-400 text-[10px] bg-slate-50 px-1.5 py-0.5 rounded">{doc.date}</span>}</li>))}</ul></div>
+            <div><h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><FileText className="w-4 h-4 text-slate-500" />Analysed Source Documents</h4><ul className="space-y-1.5">{data.sourceDocuments && data.sourceDocuments.map((doc, i) => (<li key={i} className="flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg">{doc.type === 'video' ? <Video className="w-3 h-3" /> : doc.type === 'image' ? <ImageIcon className="w-3 h-3" /> : <FileText className="w-3 h-3" />}<span className="truncate flex-1">{doc.name}</span>{doc.date && <span className="text-slate-400 text-[10px] bg-slate-50 px-1.5 py-0.5 rounded">{doc.date}</span>}</li>))}</ul></div>
          </div>
          <p className="text-center text-[10px] text-slate-400 mt-8">Generated by EcoRetrofit AI using Gemini 3 Flash. Information provided for guidance only.</p>
       </div>

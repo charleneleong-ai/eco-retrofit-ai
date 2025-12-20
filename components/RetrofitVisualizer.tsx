@@ -99,7 +99,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
       }
 
       if (!sourceImage) {
-          throw new Error("No source visual found to analyze.");
+          throw new Error("No source visual found to analyse.");
       }
 
       const result = await generateRetrofitVisualization(
@@ -117,7 +117,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
       setGeneratedImage(result);
     } catch (err) {
       console.error(err);
-      setError("Could not generate visualization. Please try again.");
+      setError("Could not generate visualisation. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -145,7 +145,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
             <div>
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <Box className="w-5 h-5 text-purple-600" />
-                Retrofit Strategy Visualizer
+                Retrofit Strategy Visualiser
               </h2>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                 AI Structural Simulation
@@ -169,7 +169,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                 ) : (
                     <Sparkles className="w-4 h-4" />
                 )}
-                {isLoading ? 'Synthesizing...' : 'Apply Strategy'}
+                {isLoading ? 'Synthesising...' : 'Apply Strategy'}
             </Button>
             
             <div className="h-8 w-px bg-slate-200 mx-1"></div>
@@ -281,7 +281,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                   </div>
                   
                   <div className="p-4 bg-slate-50 border-t border-slate-100 text-[10px] text-center text-slate-400 font-medium">
-                      Select measures and click "Apply" to render changes.
+                      Select measures and click "Apply Strategy" to render changes.
                   </div>
               </div>
 
@@ -328,7 +328,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                             <div className="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-slate-900/10 max-h-full max-w-full bg-white">
                                 <img 
                                     src={`data:image/jpeg;base64,${generatedImage}`} 
-                                    alt="Retrofit Visualization" 
+                                    alt="Retrofit Visualisation" 
                                     className="max-h-full max-w-full object-contain"
                                 />
                                 <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest backdrop-blur-xl flex items-center gap-2 border border-white/20">
@@ -361,7 +361,7 @@ const RetrofitVisualizer: React.FC<RetrofitVisualizerProps> = ({
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                                 </span>
-                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Combined Strategy Synthesized</span>
+                                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Combined Strategy Synthesised</span>
                             </div>
                             <a 
                               href={`data:image/jpeg;base64,${generatedImage}`} 
